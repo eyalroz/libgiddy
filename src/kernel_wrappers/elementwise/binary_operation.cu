@@ -2,7 +2,6 @@
 #include "kernel_wrappers/common.h"
 #ifdef __CUDACC__
 #include "kernels/elementwise/binary_operation.cuh"
-#include "util/exception.h"
 #endif
 
 namespace cuda {
@@ -85,7 +84,7 @@ void kernel<IndexSize, BinaryOp, LHSScalarity, RHSScalarity, SerializationFactor
 		);
 	}
 	else {
-		throw util::out_of_range("Can't have scalar-scalar binary ops");
+		throw std::out_of_range("Can't have scalar-scalar binary ops");
 	}
 }
 

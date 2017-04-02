@@ -157,12 +157,6 @@ cuda_add_library(
 #	OPTIONS RELEASE -O3 --use_fast_math
 )
 
-add_library(
-	cpp-util
-	src/util/stack_trace.cpp
-	src/util/poor_mans_reflection.cpp
-)
-
 #Note: When you link a binary with giddy, you will need to link with:
 #
 # * The Boost libraries

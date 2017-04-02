@@ -5,7 +5,6 @@
 #include "cuda/api/types.h"
 #include "cuda/api/device_properties.hpp"
 #include "cuda/api/device_function.hpp"
-#include "util/exception.h"
 #include "cuda/optional_and_any.hpp"
 
 namespace cuda {

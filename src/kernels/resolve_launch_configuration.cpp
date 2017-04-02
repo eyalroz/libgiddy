@@ -6,7 +6,6 @@
 #include "cuda/api/constants.h"
 #include "cuda/api/kernel_launch.cuh"
 #include "cuda/linear_grid.h"
-#include "util/exception.h"
 #include "util/math.hpp" // for lcm
 #ifdef DEBUG
 #include "cuda/printing.h"
@@ -207,7 +206,7 @@ static grid_block_dimension_t resolve_block_length(
 	if (params.grid_construction_resolution == resolution_t::block &&
 		params.block_resolution_constraints.fixed_threads_per_block) {
 		if (params.block_resolution_constraints.fixed_threads_per_block.value() > max_threads_per_block) {
-			throw util::invalid_argument("Kernel requires "
+			throw std::invalid_argument("Kernel requires "
 				+ std::to_string(params.block_resolution_constraints.fixed_threads_per_block.value())
 				+ " threads per block, while  the different constraints on the number of threads per "
 				"block only allow " + std::to_string(max_threads_per_block) + ".");
@@ -221,7 +220,7 @@ static grid_block_dimension_t resolve_block_length(
 			util::round_down(max_threads_per_block, common_quantum_for_threads_in_block);
 
 		if (threads_per_full_block == 0) {
-			throw util::invalid_argument(
+			throw std::invalid_argument(
 				"The combined constraints on the number of threads per block do "
 				"not allow any threads in a block");
 		}
@@ -290,7 +289,7 @@ static size_t resolve_num_blocks(
 		if (num_blocks_covering_all_length_units > limit) {
 			if (params.serialization_option != params_t::serialization_option_t::auto_maximized &&
 				params.serialization_option != params_t::serialization_option_t::keep_gpu_busy) {
-				throw util::invalid_argument(
+				throw std::invalid_argument(
 						"Required grid length exceeds specified limit: "
 						+ std::to_string(limit) + " > "
 						+ std::to_string(num_blocks_covering_all_length_units));
@@ -324,18 +323,18 @@ static size_t resolve_effective_length(
 	case params_t::serialization_option_t::none:
 		effective_serialization_factor = serialization_factor.value_or(1);
 		if (effective_serialization_factor == 1) { return params.length; }
-		throw util::logic_error("kernel does not allow for serialization");
+		throw std::logic_error("kernel does not allow for serialization");
 	case params_t::serialization_option_t::fixed_factor:
 		effective_serialization_factor = serialization_factor.value_or(params.default_serialization_factor);
 		if (effective_serialization_factor != params.default_serialization_factor) {
-			throw util::logic_error(
+			throw std::logic_error(
 				"kernel cannot admit serialization at a factor other than the fixed default");
 		}; break;
 	case params_t::serialization_option_t::runtime_specified_factor:
 		effective_serialization_factor = serialization_factor.value_or(params.default_serialization_factor);
 		break;
 	case params_t::serialization_option_t::auto_maximized:
-		throw util::logic_error("kernel auto-serializes, making it "
+		throw std::logic_error("kernel auto-serializes, making it "
 			"meaningless to set apply a serialization factor");
 	default: // can't get here
 		throw  util::invalid_argument("Unsupported serialization option");

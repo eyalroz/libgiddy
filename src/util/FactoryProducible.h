@@ -1,7 +1,6 @@
 #ifndef UTIL_FACTORYPRODUCIBLESUBCLASSES_H_
 #define UTIL_FACTORYPRODUCIBLESUBCLASSES_H_
 
-#include "util/exception.h"
 #include <typeinfo>
  
 #include "util/Factory.h"
@@ -48,7 +47,7 @@ protected:
 	static std::unique_ptr<Base> produceSubclass(ConstructionArgs... args) {
 		Key subclass_key = resolveSubclassKey(args...);
 		if (!getSubclassFactory().canProduce(subclass_key)) {
-			throw invalid_argument(std::string("No subclass of the base type ")
+			throw std::invalid_argument(std::string("No subclass of the base type ")
 				+ typeid(Base).name() + " is registered with key \""
 				+ std::string(subclass_key) + "\"");
 		}

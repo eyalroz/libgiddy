@@ -9,7 +9,6 @@
 #endif
 
 #include "util/math.hpp" // for kinda_equal and ilog2
-#include "util/exception.h" // yes, it's safe, no circular dependency
 #include "util/index_sequence.hpp"
 
 #include <cstring> // for std::memset()
@@ -167,7 +166,7 @@ Iterator safe_advance(Iterator it, Iterator end, size_t delta)
 	size_t advanced_distance = 0;
 	while(it != end && advanced_distance++ < delta) { it++; }
 	if (advanced_distance < delta) {
-		throw util::runtime_error(
+		throw std::runtime_error(
 			"Could only advance iterator by " + std::string(advanced_distance) +
 			" before reaching the sentinel.");
 	}

@@ -14,8 +14,6 @@
 #ifndef UTIL_FACTORY_H_
 #define UTIL_FACTORY_H_
 
-#include "util/exception.h"
-
 #include <unordered_map>
 #include <memory>
 #include <exception>
@@ -72,7 +70,7 @@ public:
 	{
 		auto it = subclassInstantiators.find(subclass_key);
 		if (it == subclassInstantiators.end()) {
-			throw invalid_argument(
+			throw std::invalid_argument(
 				"Attempt to produce an instance of a class "
 				"by a key not registered in the factory");
 		}

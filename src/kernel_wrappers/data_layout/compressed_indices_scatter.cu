@@ -36,7 +36,7 @@ launch_configuration_t kernel<OutputIndexSize, ElementSize, InputIndexSize, RunL
 	auto anchoring_period  = any_cast<size_t>(extra_arguments.at("anchoring_period"));
 
 	if (input_data_length == 0) {
-		throw util::invalid_argument("Zero-length scatters not currently supported");
+		throw std::invalid_argument("Zero-length scatters not currently supported");
 	}
 
 	kernel_ns::launch_config_resolution_params_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize> params(

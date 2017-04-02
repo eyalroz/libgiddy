@@ -24,9 +24,7 @@ namespace cuda {
 // for resolving launch configurations (and is for host
 // code only)
 
-// #include "kernels/resolve_launch_configuration.h"
 #include "kernels/launch_config_resolution_params.h"
-#include "util/exception.h" // For host code only
 
 #include "cuda/syntax_replacement.h"
 
