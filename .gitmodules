@@ -1,0 +1,3 @@
+[submodule "external/cuda-api-wrappers"]
+	path = external/cuda-api-wrappers
+	url = git@github.com:eyalroz/cuda-api-wrappers.git
