@@ -138,13 +138,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "lib/")
 
 cuda_add_library(
 	giddy-kernels
-	src/kernel_wrappers/data_layout/gather.cu
-	src/kernel_wrappers/data_layout/gather_bits.cu
 	src/kernel_wrappers/data_layout/scatter.cu
 	src/kernel_wrappers/data_layout/compressed_indices_scatter.cu
-	src/kernel_wrappers/reduction/scan.cu
-	src/kernel_wrappers/reduction/reduce.cu
-	src/kernel_wrappers/reduction/count_if.cu
 	src/kernel_wrappers/decompression/dictionary.cu
 	src/kernel_wrappers/decompression/incidence_bitmaps.cu
 	src/kernel_wrappers/decompression/delta.cu
