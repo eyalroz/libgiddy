@@ -20,11 +20,11 @@ One way of counteracting this handicap is using compression. The GPU can afford 
 
 Compression schemes come in many shapes and sizes, but it is customary to distinguish "heavy-weight" schemes (such as those based on [Lempel-Ziv](https://en.wikipedia.org/wiki/LZ77_and_LZ78)) from "lightweight" schemes, involving small amounts of computation per element, few accesses to the compressed data for decompressing any single element.
 
-This library 
+Giddy enables the use of lightweight compressed data on the GPU by providing decompressor implementations for a plethora of compression schemes.
 
-## <a name="what">What does this library comprise?</a>
+## <a name="what">What does the library comprise?</a>
 
-This is essentially a library of GPU kernels and logic for configuring their launch (grid dimensions, block dimensions, dynamic shared memory size). The kernels can be used in one of three ways, described below. Let's suppose we want to use compression scheme "Foo"
+Giddy is essentially a library of GPU kernels and logic for configuring their launch (grid dimensions, block dimensions, dynamic shared memory size). The kernels can be used in one of three ways, described below. Let's suppose we want to use compression scheme "Foo".
 
 1. Use of the kernel code itself. In this case you would need to take care of the launch configuration
 
@@ -47,6 +47,8 @@ This is essentially a library of GPU kernels and logic for configuring their lau
 
    * Include [`src/kernel_wrappers/registered_wrappers.h`](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/registered_wrapper.h)
    * Use the `cuda::registered::kernel_t` class' static methods - `listSubclasses()` and `produceSubclass()` - to instantiate specific scheme wrappers. The instantiated wrappers don't have any state; the instantiation is necessary simply for their vtables (i.e. to be able to call the compression-scheme-specific methods).
+
+**Note:** No code is currently provided for *compressing* data, on the host side or anywhere else. This is [Issue #3](https://github.com/eyalroz/libgiddy/issues/3).
 
 ## <a name="which">Supported compression schemes</a>
 
