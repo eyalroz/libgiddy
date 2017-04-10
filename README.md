@@ -1,6 +1,6 @@
 # Giddy <br> A lightweight GPU decompression library
 
-Described in [this mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) in the [DaMoN 2017](http://daslab.seas.harvard.edu/damon2017/) workshop, coauthored by [Prof. Peter Boncz](http://homepages.cwi.nl/~boncz/)
+Described in [this mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) in the [DaMoN 2017](http://daslab.seas.harvard.edu/damon2017/) workshop.
 
 * [Why lightweight compression for GPU work?](#why)
 * [What does this library comprise?](#what)
@@ -68,8 +68,18 @@ Additionally, two patching schemes are supported: Naive patching and Compressed-
 
 ## <a name="why">Exaples of use</a>
 
-Example code is forthcoming. For now, you can find a rather complicated example in the form of the test harness used to develop these kernels, available in this repository](https://bitbucket.org/eyalroz/db-kernel-testbench/) on BitBucket.
+Example code is forthcoming. For now, you can find a rather complicated example in the form of the test harness used to develop these kernels, available in [this repository](https://bitbucket.org/eyalroz/db-kernel-testbench/) on BitBucket.
 
 ## <a name="performance">Performance</a>
 
 Some of the decompressors are well-optimized, some need more work. The most recent (and only) performance analysis is in the  [mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) mentioned above. *Step-by-step instructions for measuring performance (using well-known data sets) are forthcoming.*
+
+## <a name="credits">Credits</a>
+
+This endevor was made possible by:
+
+* [CWI Amsterdam](http://www.cwi.nl/) - the research institute where I'm employed
+* [Prof. Peter Boncz](http://homepages.cwi.nl/~boncz/), co-author of the above-mentioned paper
+* The [MonetDB](http://www.monetdb.org/) DBMS project - which got me into DBMSes and GPUs in the first place, and which I (partially) use for performance testing
+
+... do check all of these out.
