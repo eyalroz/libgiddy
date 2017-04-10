@@ -1,4 +1,4 @@
-# Giddy <br> A lightweight GPU decompression library
+# Giddy - A lightweight GPU decompression library
 
 Described in [this mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) in the [DaMoN 2017](http://daslab.seas.harvard.edu/damon2017/) workshop.
 
