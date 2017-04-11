@@ -43,11 +43,11 @@ launch_configuration_t kernel<IndexSize, UncompressedSize, ElementSizesContainer
 		device_properties,
 		length_in_elements, position_anchoring_period);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-void kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::launch(
+void kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -65,10 +65,8 @@ void kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::launch(
 	auto num_elements                   = any_cast<index_type           >(arguments.at("num_elements"                 ));
 	auto min_represented_element_size   = any_cast<element_size_t       >(arguments.at("min_represented_element_size" ));
 	auto bits_per_element_size          = any_cast<unsigned             >(arguments.at("bits_per_element_size"        ));
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::discard_zero_bytes::variable_width::decompress
-		<IndexSize, UncompressedSize, ElementSizesContainerSize>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, compressed_data, packed_element_sizes, position_anchors,
 		position_anchoring_period, num_elements, min_represented_element_size,
 		bits_per_element_size

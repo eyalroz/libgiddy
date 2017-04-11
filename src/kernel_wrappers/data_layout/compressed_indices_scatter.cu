@@ -42,11 +42,11 @@ launch_configuration_t kernel<OutputIndexSize, ElementSize, InputIndexSize, RunL
 	kernel_ns::launch_config_resolution_params_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize> params(
 		device_properties, input_data_length, anchoring_period);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize>
-void kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::launch(
+void kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::enqueue_launch(
 	stream::id_t                      stream,
 	const launch_configuration_t&    launch_config,
 	arguments_type                   arguments) const
@@ -70,9 +70,8 @@ void kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::launch
 	auto num_scatter_position_runs                    = any_cast<input_index_type         >(arguments.at("num_scatter_position_runs"                   ));
 	auto input_data_length                            = any_cast<size_t                   >(arguments.at("input_data_length"                           ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::scatter::compressed_indices::scatter<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		target,
 		data_to_scatter,
 		scatter_position_run_lengths,

@@ -406,15 +406,15 @@ __global__ void decompress(
 }
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_in_elements,
 		size_t                          position_anchoring_period) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(decompress<IndexSize, UncompressedSize, ElementSizesContainerSize>)
 		)

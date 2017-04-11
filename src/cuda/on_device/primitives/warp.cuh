@@ -10,6 +10,7 @@
 #include "cuda/on_device/builtins.cuh"
 #include "cuda/on_device/atomics.cuh"
 #include "cuda/on_device/ptx.cuh"
+#include "cuda/on_device/math.cuh"
 
 #include <type_traits>
 
@@ -284,18 +285,127 @@ __fd__ void cast_and_copy(
 	}
 }
 
+namespace detail {
+
 /**
- * Same as {@ref cast_copy}, except that no casting is done
+ * A version of @ref ::copy which ignores pointer alignment,
+ * and the memory transaction size, simply making coalesced writes
+ * of warp_size elements at a time (except for the last range)
+ * @param target
+ * @param source
+ * @param length
  */
 template <typename T, typename Size>
-__fd__ void copy(
+__fd__ void naive_copy(
 	T*        __restrict__  target,
 	const T*  __restrict__  source,
 	Size                    length)
 {
-	return cast_and_copy<T, T, Size>(target, source, length);
+	#pragma unroll
+	for(promoted_size<Size> pos = lane::index(); pos < length; pos += warp_size)
+	{
+		target[pos] = source[pos];
+	}
 }
 
+
+} // namespace detail
+
+
+/**
+ * Same as {@ref cast_copy}, except that no casting is done
+ *
+ * @note This version assumes both the source and target are well-aligned,
+ * and that length * sizeof(T) % 4 == 0
+ *
+ */
+
+/**
+ * Has the warp copy data from one place to another
+ *
+ *  * @note if the input is not 32-byte (sometimes 128-byte )-aligned,
+ * and more importantly, the output is not 128-byte-aligned,
+ * performance will likely degrade due to the need to execute a pair
+ * of memory transactions for every single 32 x 4 byte write.
+ *
+ * @tparam     T       type of the elements being copied
+ * @tparam     Size    type of the length parameter
+ * @tparam     MayHaveSlack
+ *                     we "like" data whose size is a multiple of 4 bytes,
+ *                     and can copy it faster. When this is true, we assume
+ *                     the overall size of data to copy is a multiple of 4,
+ *                     without taking the time to check. In the future the
+ *                     semantics of this parameter will change to involve
+ *                     alignment of the start and end addresses.
+ * @param[out] target  starting address of the region of memory to copy into
+ * @param[in]  source  starting address of the region of memory to copy from
+ * @param[in]  length  number of elements (of type T) to copy
+ */
+template <typename T, typename Size, bool MayHaveSlack = true>
+__fd__ void copy_n(
+	T*        __restrict__  target,
+	const T*  __restrict__  source,
+	Size                    length)
+{
+	using namespace grid_info::linear;
+	enum {
+		elements_per_full_warp_write =
+			primitives::detail::elements_per_full_warp_write<T>::value
+	};
+
+	if ((elements_per_full_warp_write == 1) or
+	    not (sizeof(T) == 1 or sizeof(T) == 2 or sizeof(T) == 4 or sizeof(T) == 8) or
+	    not std::is_trivially_copy_constructible<T>::value)
+	{
+		detail::naive_copy(target, source, length);
+	}
+	else {
+		// elements_per_full_warp_write is either 1, 2...
+		array<T, elements_per_full_warp_write> buffer;
+			// ... so this has either 1 or 2 elements and its overall size is 4
+
+		promoted_size<Size> truncated_length = MayHaveSlack ?
+			clear_lower_k_bits(length, log2_constexpr(elements_per_full_warp_write)) :
+			length;
+
+		// TODO: Should I pragma-unroll this by a fixed amount? Should
+		// I not specify an unroll at all?
+		#pragma unroll
+		for(promoted_size<Size> pos = lane::index() * elements_per_full_warp_write;
+			pos < truncated_length;
+			pos += warp_size * elements_per_full_warp_write)
+		{
+			* (reinterpret_cast<decltype(buffer) *>(target + pos)) =
+				*( reinterpret_cast<const decltype(buffer) *>(source + pos) );
+		}
+
+		if (MayHaveSlack) {
+			if (elements_per_full_warp_write == 2) {
+				// the slack must be exactly 1
+				// Multiple writes to the same place are safe according to
+				// the CUDA C Programming Guide v8 section G.3.2 Global Memory
+				target[truncated_length] = source[truncated_length];
+			}
+			else {
+				auto num_slack_elements = length - truncated_length;
+				if (lane::index() < num_slack_elements) {
+					auto pos = truncated_length + lane::index();
+					target[pos] = source[pos];
+				}
+			}
+		}
+	}
+}
+
+template <typename T, bool MayHaveSlack = true>
+__fd__ void copy(
+	const T*  __restrict__  source_start,
+	const T*  __restrict__  source_end,
+	T*        __restrict__  target_start)
+{
+	auto length = source_end - source_start;
+	return copy_n<T, sizeof(length), MayHaveSlack>(target_start, source_start, length);
+}
 
 // TODO: Check whether writing this with a forward iterator and std::advance
 // yields the same PTX code (in which case we'll prefer that)
@@ -338,44 +448,6 @@ __fd__ void lookup(
 	for(promoted_size<Size> pos = lane::index(); pos < num_indices; pos += warp_size) {
 		target[pos] = lookup_table[indices[pos]];
 	}
-}
-
-/**
- * Used by multiple warps, when each warp has a bunch of data it has
- * obtained and all warps' data must be chained into a global-memory
- * vector - with no gaps and no overwriting (but not necessarily in
- * the order of warps, just any order.)
- *
- * @tparam T the type of data elements being copied
- * @tparam Size must fit any index used into the input or output array;
- * for the general case it would be 64-bit, but this is
- * usable also for when you need 32-bit work (e.g. a 32-bit length
- * output variable).
- * @param global_output
- * @param global_output_length
- * @param fragment_to_append
- * @param fragment_length
- */
-template <typename T, typename Size = size_t>
-__fd__ void collaborative_append_to_global_memory(
-	T*     __restrict__  global_output,
-	Size*  __restrict__  global_output_length,
-	T*     __restrict__  fragment_to_append,
-	Size   __restrict__  fragment_length)
-{
-	using namespace grid_info::linear;
-	Size previous_output_size = thread::is_first_in_warp() ?
-		atomic::add(global_output_length, fragment_length) : 0;
-	Size offset_to_start_writing_at = get_from_lane(
-		previous_output_size, grid_info::linear::warp::first_lane);
-
-	// Now the (0-based) positions
-	// previous_output_size ... previous_output_size + fragment_length - 1
-	// are reserved by this warp; nobody else will write there and we don't need
-	// any more atomics
-
-	copy(global_output + offset_to_start_writing_at,
-		fragment_to_append, fragment_length);
 }
 
 /**
@@ -445,6 +517,7 @@ __fd__ T* get_warp_specific_shared_memory(unsigned elements_allocated_per_warp)
 	return shared_memory_proxy<T>() +
 		elements_allocated_per_warp * grid_info::linear::warp::index_in_block();
 }
+
 
 // A bit ugly, but...
 // Note: make sure the first warp thread has not diverged/exited,

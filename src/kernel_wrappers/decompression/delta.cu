@@ -39,11 +39,11 @@ inline launch_configuration_t kernel<IndexSize, UncompressedSize, CompressedSize
 		length, baselining_period,
 		limits.dynamic_shared_memory);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-inline void kernel<IndexSize, UncompressedSize, CompressedSize>::launch(
+inline void kernel<IndexSize, UncompressedSize, CompressedSize>::enqueue_launch(
 		stream::id_t                   stream,
 		const launch_configuration_t&  launch_config,
 		arguments_type                 arguments) const
@@ -57,9 +57,8 @@ inline void kernel<IndexSize, UncompressedSize, CompressedSize>::launch(
 	auto length            = any_cast<util::uint_t<IndexSize>  >(arguments.at("length"            ));
 	auto baselining_period = any_cast<util::uint_t<IndexSize>  >(arguments.at("baselining_period" ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::delta::decompress<IndexSize, UncompressedSize, CompressedSize>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, compressed_input, baseline_values, length, baselining_period
 	);
 }

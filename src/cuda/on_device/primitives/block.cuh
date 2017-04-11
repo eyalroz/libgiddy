@@ -100,9 +100,22 @@ __fd__ void cast_and_copy(
 
 /**
  * Same as {@ref cast_copy}, except that no casting is done
- */
+ *
 template <typename T, typename Size>
 __fd__ void copy(
+	T*        __restrict__  target,
+	const T*  __restrict__  source,
+	Size                    length)
+{
+	return cast_and_copy<T, T, Size>(target, source, length);
+}
+*/
+
+/**
+ * Same as {@ref cast_copy}, except that no casting is done
+ */
+template <typename T, typename Size>
+__fd__ void copy_n(
 	T*        __restrict__  target,
 	const T*  __restrict__  source,
 	Size                    length)

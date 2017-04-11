@@ -41,14 +41,14 @@ __global__ void unary_operation(
 }
 
 template<unsigned IndexSize, typename Op, serialization_factor_t SerializationFactor = DefaultSerializationFactor>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(unary_operation<IndexSize, Op, SerializationFactor>)
 		)

@@ -5,6 +5,7 @@
 #include "cuda/api/types.h"
 #include "cuda/api/device_function.hpp"
 #include "cuda/api/device.hpp"
+#include "cuda/api/kernel_launch.cuh"
 #include "cuda/optional_and_any.hpp"
 
 #include "util/macro.h" // for MAP()
@@ -52,27 +53,23 @@ struct launch_configuration_limits_t {
 struct kernel_t {
 public:
 	/**
-	 * Type-erased (or type-hidden) arguments for bot the launch config
-	 * resolution and the actual kernel launch.
+	 * Type-erased (or type-hidden) arguments for either the launch config
+	 * resolution and the actual kernel enqueue.
 	 *
 	 * @note May be replaced (or augmented) in the future with something
 	 * less costly
 	 */
 	using arguments_type = std::unordered_map<std::string, boost::any>;
 
-
 	// Only two methods for subclasses to override - one for the device function
 	// (the "kernel itself"), one for the launch config resolution. The override
 	// launches on the current device.
 	//
-	// TODO: Rename this to "schedule", since it doesn't actually
-	// launch immediately (and a stream is a scheduling queue, after all)
-	virtual void launch(
+	virtual void enqueue_launch(
 		stream::id_t                    stream_id,
 		const launch_configuration_t&   launch_config,
 		arguments_type                  args) const = 0;
 
-protected:
 	/**
 	 * Uses meta-data other than the actual (large and on-device) inputs
 	 * to resolve the parameters for launching the wrapped kernel. These
@@ -101,44 +98,68 @@ protected:
 		arguments_type                  extra_arguments,
 		launch_configuration_limits_t   limits = {} ) const = 0;
 
-public:
-	virtual launch_configuration_t resolve_launch_configuration(
-		device::properties_t            device_properties,
-		arguments_type                  extra_arguments,
-		launch_configuration_limits_t   limits = {}) const
-	{
-		return resolve_launch_configuration(
-			device_properties,
-			get_device_function().attributes(), extra_arguments, limits);
-	}
-
-	// ... and the rest is mostly a bunch of convenience overrides
-	launch_configuration_t resolve_launch_configuration(
-		device::id_t                    device_id,
-		arguments_type                  extra_arguments,
-		launch_configuration_limits_t   limits = {}) const
-	{
-		auto device_properties = cuda::device::get(device_id).properties();
-		return resolve_launch_configuration(device_properties, extra_arguments, limits);
-	}
-
-	// TODO: Perhaps a method for validating parameters?
-
-	void launch(
-		device::id_t                    device_id,
-		stream::id_t                    stream_id,
-		const launch_configuration_t&   launch_config,
-		arguments_type                  arguments) const
-	{
-		device::current::scoped_override_t<false> using_device(device_id);
-		launch(stream_id, launch_config, arguments);
-	}
+	virtual const cuda::device_function_t get_device_function() const = 0;
 
 	virtual ~kernel_t() { }
 
-protected:
-	virtual const cuda::device_function_t get_device_function() const = 0;
 };
+
+namespace kernel {
+
+// Note that the following overload the enqueue_launch() method that's
+// a part of the CUDA API wrappers
+
+template <typename... KernelParameters>
+inline void enqueue_launch(
+	const kernel_t&                  kernel_wrapper,
+	stream::id_t                     stream_id,
+	const launch_configuration_t&    launch_config,
+	KernelParameters...              parameters)
+{
+	using kernel_function_type = void (*)(KernelParameters...);
+	auto kernel_function = reinterpret_cast<kernel_function_type>(
+		kernel_wrapper.get_device_function().ptr());
+	cuda::enqueue_launch<kernel_function_type, KernelParameters...>(
+		kernel_function, stream_id, launch_config, parameters...);
+}
+
+template <typename... KernelParameters>
+inline void enqueue_launch(
+	const kernel_t&                  kernel_wrapper,
+	device::id_t                     device_id,
+	stream::id_t                     stream_id,
+	const launch_configuration_t&    launch_config,
+	KernelParameters...              parameters)
+{
+	device::current::scoped_override_t<false> using_device(device_id);
+	enqueue_launch(kernel_wrapper, stream_id, launch_config, parameters...);
+}
+
+inline launch_configuration_t resolve_launch_configuration(
+	kernel_t&                       kernel_wrapper,
+	device::properties_t            device_properties,
+	kernel_t::arguments_type        extra_arguments,
+	launch_configuration_limits_t   limits = {})
+{
+	return kernel_wrapper.resolve_launch_configuration(
+		device_properties,
+		kernel_wrapper.get_device_function().attributes(),
+		extra_arguments,
+		limits);
+}
+
+inline launch_configuration_t resolve_launch_configuration(
+	kernel_t&                       kernel_wrapper,
+	device::id_t                    device_id,
+	kernel_t::arguments_type        extra_arguments,
+	launch_configuration_limits_t   limits = {})
+{
+	auto device_properties = cuda::device::get(device_id).properties();
+	return resolve_launch_configuration(
+		kernel_wrapper, device_properties, extra_arguments, limits);
+}
+
+} // namespace kernel
 
 #define MAKE_KERNEL_ARGUMENTS_ELEMENT(_kernel_arg_identifier) \
 	{ QUOTE(_kernel_arg_identifier), _kernel_arg_identifier },

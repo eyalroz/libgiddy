@@ -16,6 +16,12 @@
 
 #include <functional>
 
+#ifdef __CUDA_ARCH__
+#define __fhd__ __forceinline__ __host__ __device__
+#else
+#define __fhd__ inline
+#endif
+
 namespace cuda {
 namespace functors {
 
@@ -28,9 +34,9 @@ struct unary_model_function_t : public std::unary_function<T, T>{
 
 	enum : unsigned { num_coefficients = NumCoefficients };
 
-	__forceinline__ __device__ __host__ unary_model_function_t(
+	__fhd__ unary_model_function_t(
 		const coefficients_type& coefficients_) : coefficients(coefficients_) { }
-	__forceinline__ __device__ __host__ unary_model_function_t(
+	__fhd__ unary_model_function_t(
 		const unary_model_function_t& other) : coefficients(other.coefficients) { }
 
 	const coefficients_type coefficients;
@@ -89,5 +95,7 @@ struct constant_model : unary_model_function_t<T, 1>{
 
 } // namespace functors
 } // namespace cuda
+
+#undef __fhd__
 
 #endif /* SRC_KERNELS_DECOMPRESSION_MODEL_FUNCTORS_HPP */

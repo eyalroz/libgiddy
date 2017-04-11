@@ -2,6 +2,8 @@
 #ifndef CUDA_BIT_OPERATIONS_CUH_
 #define CUDA_BIT_OPERATIONS_CUH_
 
+#include <type_traits>
+
 #ifdef __CUDA_ARCH__
 #include "cuda/on_device/builtins.cuh"
 #else

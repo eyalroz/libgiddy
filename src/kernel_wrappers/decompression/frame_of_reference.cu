@@ -48,14 +48,14 @@ launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFun
 		device_properties,
 		length, modeling_period);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed,typename UnaryModelFunction>
-void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::launch(
+void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -69,16 +69,14 @@ void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::launch(
 	auto length                      = any_cast<index_type               >(arguments.at("length"                      ));
 	auto modeling_period             = any_cast<index_type               >(arguments.at("modeling_period"             ));
 
-	auto num_periods = util::div_rounding_up(length, modeling_period);
+	auto num_segments = util::div_rounding_up(length, modeling_period);
 	auto num_blocks = launch_config.grid_dimensions.x;
-	auto intervals_per_block = util::div_rounding_up(num_periods, num_blocks);
+	auto segments_per_block = util::div_rounding_up(num_segments, num_blocks);
 
-	cuda::enqueue_launch(
-		::cuda::kernels::decompression::frame_of_reference::decompress
-			<IndexSize, Uncompressed, Compressed, UnaryModelFunction>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, compressed_input, interval_model_coefficients,
-		length, modeling_period, intervals_per_block
+		length, modeling_period, segments_per_block
 	);
 }
 

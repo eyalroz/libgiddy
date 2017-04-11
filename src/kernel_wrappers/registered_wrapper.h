@@ -62,16 +62,18 @@ size_t constexpr cstring_length(const char* s)
 			subclass_name_str.substr(pos + cuda::registered::detail::cstring_length(prefix)); \
 		FactoryProducible::registerInSubclassFactory<subclass_name>(key) ; \
 	} \
+public: \
 	launch_configuration_t resolve_launch_configuration( \
-		device::properties_t             device_properties, \
+		device::properties_t           device_properties, \
 		device_function::attributes_t  kerenl_function_attributes, \
-		arguments_type                   extra_arguments, \
-		launch_configuration_limits_t    limits = { nullopt, nullopt, nullopt }) const override final; \
+		arguments_type                 extra_arguments, \
+		launch_configuration_limits_t  limits = { nullopt, nullopt, nullopt }) const override final; \
 	\
-	void launch( \
-		stream::id_t                      stream, \
-		const launch_configuration_t&    launch_config, \
-		arguments_type                   arguments) const override final; \
+	/* Note: Stream is assumed to be on the current device */ \
+	void enqueue_launch( \
+		stream::id_t                   stream, \
+		const launch_configuration_t&  launch_config, \
+		arguments_type                 arguments) const override final; \
 	\
 	const device_function_t get_device_function() const override final \
 

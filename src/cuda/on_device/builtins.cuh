@@ -36,24 +36,24 @@ __df__  unsigned long long multiplication_high_bits( unsigned long long x, unsig
  */
 template <typename T>
 __df__  T divide(std::enable_if<std::is_floating_point<T>::value, T> dividend, T divisor);
-__df__  float divide(float dividend, float divisor) { return fdividef(dividend, divisor); }
+__df__  float  divide(float dividend, float divisor)   { return fdividef(dividend, divisor); }
 __df__  double divide(double dividend, double divisor) { return fdividef(dividend, divisor); }
 
 
 template <typename T> __df__ int population_count(T x);
-__df__ int population_count(unsigned int x)           { return __popc(x); }
-__df__ int population_count(unsigned long long int x) { return __popcll(x); }
+__df__ int population_count(unsigned int x)       { return __popc(x); }
+__df__ int population_count(unsigned long long x) { return __popcll(x); }
 
 template <typename T, typename S> __df__ int sum_with_absolute_difference(T x, T y, S z);
 __df__ int      sum_with_absolute_difference(int x, int y, int      z) { return __sad (x, y, z); }
 __df__ unsigned sum_with_absolute_difference(int x, int y, unsigned z) { return __usad(x, y, z); }
 
 template <typename T> __df__ int absolute_value(T x);
-__df__ int             absolute_value(int x)             { return abs(x);   }
-__df__ long int        absolute_value(long int x)        { return labs(x);  }
-__df__ long long int   absolute_value(long long int x)   { return llabs(x); }
-__df__ float           absolute_value(float x)           { return fabsf(x); }
-__df__ long long int   absolute_value(double x)          { return fabs(x);  }
+__df__ int             absolute_value(int x)     { return abs(x);   }
+__df__ long        absolute_value(long x)        { return labs(x);  }
+__df__ long long   absolute_value(long long x)   { return llabs(x); }
+__df__ float           absolute_value(float x)   { return fabsf(x); }
+__df__ long long   absolute_value(double x)      { return fabs(x);  }
 
 template <typename T> __df__ T bit_reverse(T x);
 __df__ int                bit_reverse(int x)                { return __brev(x);   }
@@ -67,16 +67,36 @@ __df__ int any_in_warp_satisfies(int cond) { return __any(cond);    }
 
 // 1-based; returns 0 if no bits are set
 template <typename T> __df__ int find_first_set(T x);
-__df__ int find_first_set(int x)                    { return __ffs(x);   }
-__df__ int find_first_set(unsigned int x)           { return __ffs(x);   }
-__df__ int find_first_set(long long int x)          { return __ffsll(x); }
-__df__ int find_first_set(unsigned long long int x) { return __ffsll(x); }
+__df__ int find_first_set(int x)                { return __ffs(x);   }
+__df__ int find_first_set(unsigned int x)       { return __ffs(x);   }
+__df__ int find_first_set(long long x)          { return __ffsll(x); }
+__df__ int find_first_set(unsigned long long x) { return __ffsll(x); }
 
 template <typename T> __df__ int count_leading_zeros(T x);
-__df__ int count_leading_zeros(int x)                    { return __clz(x);   }
-__df__ int count_leading_zeros(unsigned int x)           { return __clz(x);   }
-__df__ int count_leading_zeros(long long int x)          { return __clzll(x); }
-__df__ int count_leading_zeros(unsigned long long int x) { return __clzll(x); }
+__df__ int count_leading_zeros(int x)                { return __clz(x);   }
+__df__ int count_leading_zeros(unsigned int x)       { return __clz(x);   }
+__df__ int count_leading_zeros(long long x)          { return __clzll(x); }
+__df__ int count_leading_zeros(unsigned long long x) { return __clzll(x); }
+
+template <typename T> __df__ T minimum(T x, T y);
+__df__ int                 minimum(int x, int y)                               { return min(x,y);    }
+__df__ unsigned int        minimum(unsigned int x, unsigned int y)             { return umin(x,y);   }
+__df__ long long           minimum(long x, long y)                             { return llmin(x,y);  }
+__df__ unsigned long long  minimum(unsigned long x, unsigned long y)           { return ullmin(x,y); }
+__df__ long long           minimum(long long x, long long y)                   { return llmin(x,y);  }
+__df__ unsigned long long  minimum(unsigned long long x, unsigned long long y) { return ullmin(x,y); }
+__df__ float               minimum(float x, float y)                           { return fminf(x,y);  }
+__df__ double              minimum(double x, double y)                         { return fmin(x,y);   }
+
+template <typename T> __df__ T maximum(T x, T y);
+__df__ int                 maximum(int x, int y)                               { return max(x,y);    }
+__df__ unsigned int        maximum(unsigned int x, unsigned int y)             { return umax(x,y);   }
+__df__ long long           maximum(long x, long y)                             { return llmax(x,y);  }
+__df__ unsigned long long  maximum(unsigned long x, unsigned long y)           { return ullmax(x,y); }
+__df__ long long           maximum(long long x, long long y)                   { return llmax(x,y);  }
+__df__ unsigned long long  maximum(unsigned long long x, unsigned long long y) { return ullmax(x,y); }
+__df__ float               maximum(float x, float y)                           { return fmaxf(x,y);  }
+__df__ double              maximum(double x, double y)                         { return fmax(x,y);   }
 
 /*
  * Based on wrappers for built-in instructions from <cub/util_ptx.cuh>
@@ -131,8 +151,8 @@ namespace lane_masks {
 __df__ unsigned int       preceding()                      { return ptx::special_registers::lanemask_lt();       }
 __df__ unsigned int       preceding_and_self()             { return ptx::special_registers::lanemask_le();       }
 __df__ unsigned int       self()                           { return ptx::special_registers::lanemask_eq();       }
-__df__ unsigned int       successive_and_self()            { return ptx::special_registers::lanemask_ge();       }
-__df__ unsigned int       successive()                     { return ptx::special_registers::lanemask_gt();       }
+__df__ unsigned int       succeeding_and_self()            { return ptx::special_registers::lanemask_ge();       }
+__df__ unsigned int       succeeding()                     { return ptx::special_registers::lanemask_gt();       }
 } // namespace lane_masks
 
 } // namespace builtins

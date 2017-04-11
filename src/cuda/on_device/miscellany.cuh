@@ -17,6 +17,7 @@
 
 #include "cuda/on_device/grid_info.cuh"
 
+#include <type_traits>
 
 /**
  * Use this type when walking index variables collaboratively among
@@ -264,6 +265,27 @@ typename std::enable_if<std::is_integral<T>::value, T>::type all_one_bits()
 	return ~((T)0);
 }
 
+namespace detail {
 
+template <typename I>
+__forceinline__ __device__ void ensure_index_type_is_valid()
+{
+	static_assert(
+		std::is_same<I, unsigned char >::value or
+		std::is_same<I, unsigned short>::value or
+		std::is_same<I, unsigned int  >::value or
+		std::is_same<I, unsigned long >::value,
+		"Invalid index type");
+}
+
+template <typename T>
+constexpr __device__ bool has_nice_simple_size()
+{
+	return
+		sizeof(T) == 1 or sizeof(T) == 2 or
+		sizeof(T) == 4 or sizeof(T) == 8;
+}
+
+}
 
 #endif /* CUDA_ON_DEVICE_MISCELLANY_CUH_ */

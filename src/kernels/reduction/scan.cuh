@@ -6,6 +6,7 @@
 #include "cuda/on_device/primitives/block.cuh"
 #include "cuda/on_device/primitives/warp.cuh"
 #include "kernels/reduction/common.cuh"
+#include "cuda/on_device/builtins.cuh"
 
 namespace cuda {
 namespace kernels {
@@ -159,7 +160,8 @@ __global__ void reduce_segments(
 		return;
 	}
 
-	index_type block_segment_length = min(total_length - block_segment_start_position, full_segment_length);
+	index_type block_segment_length = builtins::minimum(
+		total_length - block_segment_start_position, full_segment_length);
 
 //	grid_printf("total_length = %u", (unsigned) total_length);
 //	block_printf(
@@ -198,15 +200,15 @@ template<
 	typename InputDatum,
 	typename PretransformOp = functors::identity<typename ReductionOp::argument_type>
 	>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_,
 		optional<size_t>                segment_length = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(reduce_segments<IndexSize, ReductionOp, InputDatum, PretransformOp>)
 		)
@@ -463,16 +465,16 @@ template<
 	bool Inclusivity = inclusivity_t::Inclusive,
 	typename PretransformOp = functors::identity<typename ReductionOp::argument_type>
 	>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_,
 		size_t                          segment_length,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(scan_using_segment_reductions<
 				IndexSize, ReductionOp, InputDatum, Inclusivity, PretransformOp>),
@@ -537,15 +539,15 @@ template<
 	bool Inclusivity = inclusivity_t::Inclusive,
 	typename PretransformOp = functors::identity<typename ReductionOp::argument_type>
 	>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(scan_single_segment<
 				IndexSize, ReductionOp, InputDatum, Inclusivity, PretransformOp>),

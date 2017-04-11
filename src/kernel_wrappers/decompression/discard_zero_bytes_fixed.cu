@@ -53,14 +53,14 @@ launch_configuration_t kernel<
 		device_properties,
 		length);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 
 template<
 	unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize,
 	endianness_t UncompressedEndianness, serialization_factor_t SerializationFactor>
-void kernel<IndexSize, UncompressedSize, CompressedSize, UncompressedEndianness, SerializationFactor>::launch(
+void kernel<IndexSize, UncompressedSize, CompressedSize, UncompressedEndianness, SerializationFactor>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -73,10 +73,8 @@ void kernel<IndexSize, UncompressedSize, CompressedSize, UncompressedEndianness,
 	auto compressed_input = any_cast<const compressed_type* >(arguments.at("compressed_input" ));
 	auto length           = any_cast<index_type             >(arguments.at("length"           ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::discard_zero_bytes::fixed_width::decompress
-		<IndexSize, UncompressedSize, CompressedSize, translate(UncompressedEndianness), SerializationFactor>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, compressed_input, length
 	);
 }

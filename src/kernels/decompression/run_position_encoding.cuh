@@ -101,9 +101,6 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 		// Keeping this out of the lambda below since we'll use it later
 		// to decide which threads
 
-	// Note that instead of at_block_stride we could do the loop ourselves
-	// and avoid the + uncompressed_segment_start_position for absolute
-	// positions; but maybe the optimizer takes that out of the loop anyway?
 	auto locate_and_perform_next_write = [&](position_offset_type relative_write_position) {
 
 		using write_type = promoted_size<uncompressed_type>;
@@ -145,7 +142,7 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 			reinterpret_cast<const write_type&>(thread_write_buffer);
 
 		{
-			// At this point we're done with the current write; but - note that
+			// At this point we're done with the current write; but - that
 			// different lanes may have been considering different runs (if the lane
 			// is not wholly covered by a single run) - with the last lane having
 			// examined the farthest run. Since in subsequent runs we will only be
@@ -337,24 +334,16 @@ __global__ void decompress(
 	using uncompressed_type    = uint_t<UncompressedSize>;
 	using position_offset_type = uint_t<PositionOffsetSize>;
 
-	static_assert(is_power_of_2(IndexSize), "IndexSize is not a power of 2");
-	static_assert(is_power_of_2(PositionOffsetSize), "sizeof(position_offset_type) is not a power of 2");
+	static_assert(IndexSize == 1 or IndexSize == 2 or IndexSize == 4 or IndexSize == 8,
+		"unsupported IndexSize");
+	static_assert(PositionOffsetSize == 1 or PositionOffsetSize == 2 or PositionOffsetSize == 4 or PositionOffsetSize == 8,
+		"unsupported PositionOffsetSize");
 	static_assert(PositionsAreRelative or PositionOffsetSize >= IndexSize,
 		"If run positions are in absolute values, their type must be able to cover the entire "
 		"potential range of data (i.e. their type must be at least as large as the size type");
 
-
-	// Decompression is performed by individual warps. Each warp works on a single anchored segment.
-	//
 	// TODO: For large anchoring periods, consider breaking up segments into consecutive pieces,
-	// with a warp handling each of them. While this will require an iterative search of the
-	// start position by each of the warps, that should not take more than a few iterations, seeing
-	// how position anchors should never ridiculously high (e.g. 16K is already very high), and
-	// each warp should like to process at least warp_size times, say, 32 elements - i.e. at most
-	// 16 warps. Thus with a reasonably-distributed sequence of runs, the search will conclude in
-	// a single iteration (an effective guess) and with the worst-case distribution the search
-	// would not be terrible because we'll recalculate the average run length at every iteration,
-	//
+	// with several warps handling each of them.
 
 	auto block_params = detail::block::resolve_segment_decompression_params
 		<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>(
@@ -371,16 +360,16 @@ __global__ void decompress(
 
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned PositionOffsetSize, bool PositionsAreRelative>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          uncompressed_length,
 		size_t                          position_anchoring_period,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(decompress<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>),
 			dynamic_shared_mem_limit
@@ -397,9 +386,7 @@ public:
 		length                        = num_anchored_segments;
 		serialization_option          = none;
 		quanta.threads_in_block       = warp_size;
-		block_resolution_constraints.fixed_threads_per_block
-		                              = std::min<grid_block_dimension_t>(
-		                            	  num_thread_writes_per_segment, 2 * warp_size);
+		upper_limits.warps_in_block   = 2;
 			// This should probably be architecture-specific, and perhaps
 			// even depend on the data distribution if that's known.
 			//

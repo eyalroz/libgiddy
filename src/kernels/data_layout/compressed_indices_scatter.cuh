@@ -9,8 +9,6 @@
 #include "cuda/on_device/generic_shuffle.cuh"
 #include "cuda/functors.hpp"
 
-#include <boost/integer.hpp>
-
 namespace cuda {
 namespace kernels {
 namespace scatter {
@@ -269,16 +267,16 @@ __global__ void scatter(
 }
 
 template <unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize = InputIndexSize>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties,
 		size_t                          input_data_length,
 		size_t                          anchoring_period
 		) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties,
 			device_function_t(scatter<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>), nullopt
 		)

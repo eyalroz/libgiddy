@@ -25,7 +25,6 @@ namespace cuda {
 // code only)
 
 #include "kernels/launch_config_resolution_params.h"
-
 #include "cuda/syntax_replacement.h"
 
 #endif /* KERNELS_COMMON_CUH_ */

@@ -6,11 +6,14 @@
 #include "cuda/api/constants.h"
 #include "cuda/api/kernel_launch.cuh"
 #include "cuda/linear_grid.h"
+#include "cuda/optional_and_any.hpp"
 #include "util/math.hpp" // for lcm
+
 #ifdef DEBUG
 #include "cuda/printing.h"
 #include <ostream>
 #include <string>
+#include <boost/optional/optional_io.hpp> // do we _really_ need this?
 #endif
 
 namespace cuda {
@@ -31,8 +34,11 @@ std::ostream& operator<<(std::ostream& os, launch_configuration_limits_t limits)
 	}
 	return os;
 }
+#endif
 
+namespace kernels {
 
+#ifdef DEBUG
 std::ostream& operator<<(std::ostream& os, const launch_config_resolution_params_t& p)
 {
 	os << "[ (device_properties)\n";
@@ -65,6 +71,7 @@ std::ostream& operator<<(std::ostream& os, const launch_config_resolution_params
 	os << "must_have_power_of_2_threads_per_block = " <<
 		(p.must_have_power_of_2_threads_per_block ? "yes" : "no") << "\n";
 
+	/*
 	os
 		<< "dynamic_shared_memory_requirement: per_length_unit = "
 		<< p.dynamic_shared_memory_requirement.per_length_unit << ", "
@@ -84,6 +91,7 @@ std::ostream& operator<<(std::ostream& os, const launch_config_resolution_params
 			os << "max_threads_per_block = " << p.block_resolution_constraints.max_threads_per_block;
 		}
 	}
+*/
 	os << "\n";
 	os	<< "available_dynamic_shared_memory_per_block = "
 		<< p.available_dynamic_shared_memory_per_block << "\n";
@@ -91,6 +99,12 @@ std::ostream& operator<<(std::ostream& os, const launch_config_resolution_params
 	return os;
 }
 #endif
+
+} // namespace kernels
+} // namespace cuda
+
+namespace cuda {
+namespace kernels {
 
 
 using params_t = launch_config_resolution_params_t;
@@ -345,7 +359,6 @@ static size_t resolve_effective_length(
 		(params.length + effective_serialization_factor - 1) / effective_serialization_factor;
 }
 
-
 // TODO: Reduce serialization factor if we end up with fewer blocks than there
 // are processors on the GPU
 launch_configuration_t resolve_launch_configuration(
@@ -378,4 +391,5 @@ launch_configuration_t resolve_launch_configuration(
 	return launch_config;
 }
 
+} // namespace kernels
 } // namespace cuda

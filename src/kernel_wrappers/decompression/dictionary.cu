@@ -43,11 +43,11 @@ launch_configuration_t kernel<IndexSize, UncompressedSize, DictionaryIndexSize>:
 		num_dictionary_entries, data_length, maybe_cache_input_data_in_shared_mem,
 		limits.dynamic_shared_memory);
 
-	return cuda::resolve_launch_configuration(params, limits, serialization_factor);
+	return cuda::kernels::resolve_launch_configuration(params, limits, serialization_factor);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned DictionaryIndexSize>
-void kernel<IndexSize, UncompressedSize, DictionaryIndexSize>::launch(
+void kernel<IndexSize, UncompressedSize, DictionaryIndexSize>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -70,10 +70,8 @@ void kernel<IndexSize, UncompressedSize, DictionaryIndexSize>::launch(
 	auto length                  = any_cast<util::uint_t<IndexSize>      >(arguments.at("length"                 ));
 	auto num_dictionary_entries  = any_cast<size_t                       >(arguments.at("num_dictionary_entries" ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::dictionary::decompress
-		<IndexSize, UncompressedSize, DictionaryIndexSize>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed,
 		compressed_input,
 		dictionary_entries, // the "input data length" w.r.t. the Gather kernel

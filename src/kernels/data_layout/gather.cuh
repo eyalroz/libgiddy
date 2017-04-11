@@ -164,9 +164,9 @@ __global__ void gather(
 }
 
 template <unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 
 protected:
 	// TODO: Reduce the visibility of this function
@@ -190,7 +190,7 @@ public:
 		size_t                          num_indices,
 		optional<bool>                  cache_input_data_in_shared_memory_override = nullopt,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(gather<OutputIndexSize, ElementSize, InputIndexSize>),
 			dynamic_shared_mem_limit

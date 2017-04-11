@@ -6,6 +6,7 @@
 #include "cuda/kernel_wrapper.cuh" // for launch_configuration_limits_t
 
 namespace cuda {
+namespace kernels {
 
 /**
  * Resolves a launch configuration based on the configuration parameters passed to it.
@@ -25,6 +26,7 @@ launch_configuration_t resolve_launch_configuration(
 	const launch_configuration_limits_t&      limits,
 	optional<serialization_factor_t>          serialization_factor = nullopt);
 
+} // namespace kernels
 } // namespace cuda
 
 #endif /* RESOLVE_LAUNCH_CONFIGURATION_H */

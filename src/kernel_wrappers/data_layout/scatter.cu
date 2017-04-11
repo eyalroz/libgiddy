@@ -38,15 +38,15 @@ launch_configuration_t kernel<OutputIndexSize, ElementSize, InputIndexSize, Seri
 		device_properties,
 		data_length);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, serialization_factor_t SerializationFactor>
-void kernel<OutputIndexSize, ElementSize, InputIndexSize, SerializationFactor>::launch(
+void kernel<OutputIndexSize, ElementSize, InputIndexSize, SerializationFactor>::enqueue_launch(
 	stream::id_t                   stream,
-	const launch_configuration_t&   launch_config,
-	arguments_type                  arguments) const
+	const launch_configuration_t&  launch_config,
+	arguments_type                 arguments) const
 {
 	auto target       = any_cast<element_type*            >(arguments.at("target"        ));
 	auto data         = any_cast<const element_type*      >(arguments.at("data"          ));
@@ -54,9 +54,8 @@ void kernel<OutputIndexSize, ElementSize, InputIndexSize, SerializationFactor>::
 	auto data_length  = any_cast<size_t                   >(arguments.at("data_length"   ));
 
 
-	cuda::enqueue_launch(
-		cuda::kernels::scatter::scatter<OutputIndexSize, ElementSize, InputIndexSize, SerializationFactor>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		target, data, indices, data_length
 	);
 }

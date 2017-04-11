@@ -49,9 +49,9 @@ __global__ void decompress(
 	const Compressed*   __restrict__  compressed_input,
 	const typename UnaryModelFunction::model_coefficients_type*
 	                    __restrict__  interval_model_coefficients,
-	uint_t<IndexSize>           length,
-	uint_t<IndexSize>           modeling_period,
-	uint_t<IndexSize>           intervals_per_block)
+	uint_t<IndexSize>                 length,
+	uint_t<IndexSize>                 modeling_period,
+	uint_t<IndexSize>                 intervals_per_block)
 {
 	using namespace grid_info::linear;
 	using index_type = uint_t<IndexSize>;
@@ -93,15 +93,15 @@ __global__ void decompress(
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed, typename UnaryModelFunction>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          data_length,
 		size_t                          modeling_period) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(decompress<IndexSize, Uncompressed, Compressed, UnaryModelFunction>)
 		)

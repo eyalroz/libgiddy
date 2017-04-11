@@ -33,12 +33,12 @@ launch_configuration_t kernel<IndexSize, Uncompressed, UnaryModelFunction>::reso
 	kernel_ns::launch_config_resolution_params_t<IndexSize, Uncompressed, UnaryModelFunction> params(
 		device_properties, length);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
-void kernel<IndexSize, Uncompressed, UnaryModelFunction>::launch(
+void kernel<IndexSize, Uncompressed, UnaryModelFunction>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -51,9 +51,8 @@ void kernel<IndexSize, Uncompressed, UnaryModelFunction>::launch(
 	auto decompressed       = any_cast<Uncompressed*           >(arguments.at("decompressed"       ));
 	auto model_coefficients = any_cast<model_coefficients_type >(arguments.at("model_coefficients" ));
 
-	cuda::enqueue_launch(
-		::cuda::kernels::decompression::model::decompress<IndexSize, Uncompressed, UnaryModelFunction>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, model_coefficients, length);
 }
 

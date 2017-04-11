@@ -80,7 +80,8 @@ __global__ void decompress(
 		period_index += grid::num_blocks())
 	{
 		index_type        segment_start_position = period_index * length_of_full_scan_segment;
-		index_type        segment_length         = min(length - segment_start_position, length_of_full_scan_segment);
+		index_type        segment_length         = builtins::minimum(
+			length - segment_start_position, length_of_full_scan_segment);
 		uncompressed_type baseline_value         = baseline_values[period_index];
 
 		reduction::scan::detail::scan_segment
@@ -100,16 +101,16 @@ __global__ void decompress(
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-class launch_config_resolution_params_t final : public cuda::launch_config_resolution_params_t {
+class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
-	using parent = cuda::launch_config_resolution_params_t;
+	using parent = kernels::launch_config_resolution_params_t;
 public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          data_length,
 		size_t                          baselining_period,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
-		cuda::launch_config_resolution_params_t(
+		parent(
 			device_properties_,
 			device_function_t(decompress<IndexSize, UncompressedSize, CompressedSize>)
 		)

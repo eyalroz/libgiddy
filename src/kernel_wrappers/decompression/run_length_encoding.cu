@@ -37,11 +37,11 @@ launch_configuration_t kernel<IndexSize, UncompressedSize, RunLengthSize>::resol
 		device_properties,
 		uncompressed_length, position_anchoring_period);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
-void kernel<IndexSize, UncompressedSize, RunLengthSize>::launch(
+void kernel<IndexSize, UncompressedSize, RunLengthSize>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -60,9 +60,8 @@ void kernel<IndexSize, UncompressedSize, RunLengthSize>::launch(
 	auto num_element_runs           = any_cast<util::uint_t<IndexSize>  >(arguments.at("num_element_runs"           ));
 	auto uncompressed_length        = any_cast<util::uint_t<IndexSize>  >(arguments.at("uncompressed_length"        ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::run_length_encoding::decompress<IndexSize, UncompressedSize, RunLengthSize>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, run_data, run_lengths, position_anchors, intra_run_anchor_offsets,
 		position_anchoring_period, num_anchors, num_element_runs, uncompressed_length
 	);

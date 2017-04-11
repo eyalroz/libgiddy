@@ -38,11 +38,11 @@ launch_configuration_t kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts
 		device_properties,
 		length);
 
-	return cuda::resolve_launch_configuration(params, limits);
+	return cuda::kernels::resolve_launch_configuration(params, limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary>
-void kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::launch(
+void kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -56,10 +56,8 @@ void kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::
 	auto bitmap_length      = any_cast<util::uint_t<IndexSize>  >(arguments.at("bitmap_length"      ));
 	auto num_bitmaps        = any_cast<bitmap_index_type        >(arguments.at("num_bitmaps"        ));
 
-	cuda::enqueue_launch(
-		cuda::kernels::decompression::incidence_bitmaps
-		::decompress<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>,
-		launch_config, stream,
+	cuda::kernel::enqueue_launch(
+		*this, stream, launch_config,
 		decompressed, incidence_bitmaps, dictionary_entries, bitmap_length, num_bitmaps
 	);
 }

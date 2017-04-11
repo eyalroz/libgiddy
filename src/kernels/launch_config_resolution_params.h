@@ -8,7 +8,7 @@
 #include "cuda/optional_and_any.hpp"
 
 namespace cuda {
-
+namespace kernels {
 class launch_config_resolution_params_t {
 
 public: // types
@@ -35,7 +35,7 @@ public: // types
 		auto_maximized,              // The kernels tries to 'serialize' as much as possible, i.e.
 		                             // each block in the grid continues processing data at grid stride
 		                             // until getting to the end of the input.
-		keep_gpu_busy = auto_maximized, 
+		keep_gpu_busy = auto_maximized,
 		                             // ... and actually, the maximum effective serialization factor is
 		                             // where it can't be increased without making the GPU go idle
 		                             // occasionally, which we obviously don't want happening
@@ -134,6 +134,7 @@ protected: // constructors
 };
 
 
+} // namespace kernels
 } // namespace cuda
 
 #endif /* LAUNCH_CONFIG_RESOLUTION_PARAMS_H_ */
