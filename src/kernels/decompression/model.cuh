@@ -38,7 +38,7 @@ using namespace grid_info::linear;
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
 __global__ void decompress(
 	Uncompressed* __restrict__   decompressed,
-	typename UnaryModelFunction::model_coefficients_type
+	typename UnaryModelFunction::coefficients_type
 	                             model_coefficients,
 	uint_t<IndexSize>            length)
 {
@@ -57,7 +57,7 @@ __global__ void decompress(
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
 __global__ void decompress_with_intervals(
 	Uncompressed* __restrict__   decompressed,
-	const typename UnaryModelFunction::model_coefficients_type* __restrict__
+	const typename UnaryModelFunction::coefficients_type* __restrict__
 	                             interval_model_coefficients,
 	uint_t<IndexSize>            modeling_period,
 	uint_t<IndexSize>            intervals_per_block,

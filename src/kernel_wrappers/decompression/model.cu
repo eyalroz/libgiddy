@@ -13,7 +13,7 @@ namespace model {
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
 class kernel: public cuda::registered::kernel_t {
 public:
-	using model_coefficients = typename UnaryModelFunction::model_coefficients_type;
+	using model_coefficients = typename UnaryModelFunction::coefficients_type;
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
 
 };
@@ -45,7 +45,7 @@ void kernel<IndexSize, Uncompressed, UnaryModelFunction>::enqueue_launch(
 {
 	using index_type = uint_t<IndexSize>;
 	using model_coefficients_type =
-		typename UnaryModelFunction::model_coefficients_type;
+		typename UnaryModelFunction::coefficients_type;
 	auto length          = any_cast<index_type>(arguments.at("length"));
 
 	auto decompressed       = any_cast<Uncompressed*           >(arguments.at("decompressed"       ));

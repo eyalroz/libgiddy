@@ -23,7 +23,7 @@ namespace kernels {
  */
 launch_configuration_t resolve_launch_configuration(
 	const launch_config_resolution_params_t&  params,
-	const launch_configuration_limits_t&      limits,
+	const launch_configuration_limits_t       limits = { },
 	optional<serialization_factor_t>          serialization_factor = nullopt);
 
 } // namespace kernels

@@ -24,7 +24,7 @@ template<
 	typename Compressed, typename UnaryModelFunction>
 class kernel: public cuda::registered::kernel_t {
 public:
-	using model_coefficients = typename UnaryModelFunction::model_coefficients_type;
+	using model_coefficients_type = typename UnaryModelFunction::coefficients_type;
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
 
 };
@@ -61,13 +61,13 @@ void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_la
 	arguments_type                 arguments) const
 {
 	using index_type = uint_t<IndexSize>;
-	using coefficients_type = const typename UnaryModelFunction::model_coefficients_type;
+	using model_coefficients_type = const typename UnaryModelFunction::coefficients_type;
 
-	auto decompressed                = any_cast<Uncompressed*            >(arguments.at("decompressed"                ));
-	auto compressed_input            = any_cast<const Compressed*        >(arguments.at("compressed_input"            ));
-	auto interval_model_coefficients = any_cast<const coefficients_type* >(arguments.at("interval_model_coefficients" ));
-	auto length                      = any_cast<index_type               >(arguments.at("length"                      ));
-	auto modeling_period             = any_cast<index_type               >(arguments.at("modeling_period"             ));
+	auto decompressed                = any_cast<Uncompressed*                  >(arguments.at("decompressed"                ));
+	auto compressed_input            = any_cast<const Compressed*              >(arguments.at("compressed_input"            ));
+	auto interval_model_coefficients = any_cast<const model_coefficients_type* >(arguments.at("interval_model_coefficients" ));
+	auto length                      = any_cast<index_type                     >(arguments.at("length"                      ));
+	auto modeling_period             = any_cast<index_type                     >(arguments.at("modeling_period"             ));
 
 	auto num_segments = util::div_rounding_up(length, modeling_period);
 	auto num_blocks = launch_config.grid_dimensions.x;

@@ -47,7 +47,7 @@ template<
 __global__ void decompress(
 	Uncompressed*       __restrict__  decompressed,
 	const Compressed*   __restrict__  compressed_input,
-	const typename UnaryModelFunction::model_coefficients_type*
+	const typename UnaryModelFunction::coefficients_type*
 	                    __restrict__  interval_model_coefficients,
 	uint_t<IndexSize>                 length,
 	uint_t<IndexSize>                 modeling_period,
