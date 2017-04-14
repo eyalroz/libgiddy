@@ -27,9 +27,35 @@ public:
 	using model_coefficients_type = typename UnaryModelFunction::coefficients_type;
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
 
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         length,
+		size_t                         modeling_period,
+		launch_configuration_limits_t  limits = { nullopt, nullopt, nullopt} ) const;
 };
 
 #ifdef __CUDACC__
+
+template<
+	unsigned IndexSize, typename Uncompressed,
+	typename Compressed, typename UnaryModelFunction>
+launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::resolve_launch_configuration(
+	device::properties_t           device_properties,
+	device_function::attributes_t  kernel_function_attributes,
+	size_t                         length,
+	size_t                         modeling_period,
+	launch_configuration_limits_t  limits) const
+{
+	namespace kernel_ns = cuda::kernels::decompression::frame_of_reference;
+
+	kernel_ns::launch_config_resolution_params_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction> params(
+		device_properties,
+		length, modeling_period);
+
+	return cuda::kernels::resolve_launch_configuration(params, limits);
+}
+
 
 template<
 	unsigned IndexSize, typename Uncompressed,
@@ -40,15 +66,11 @@ launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFun
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	namespace kernel_ns = cuda::kernels::decompression::frame_of_reference;
-
-	auto length = any_cast<size_t>(extra_arguments.at("length"));
+	auto length          = any_cast<size_t>(extra_arguments.at("length"         ));
 	auto modeling_period = any_cast<size_t>(extra_arguments.at("modeling_period"));
-	kernel_ns::launch_config_resolution_params_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction> params(
-		device_properties,
-		length, modeling_period);
 
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes, length, modeling_period, limits);
 }
 
 

@@ -9,7 +9,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 # -----------------------------------
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    # This is the top-level project.
+	# This is the top-level project.
 	PROJECT(giddy)
 
 #	# No versioning for now
@@ -28,6 +28,7 @@ include (ReleaseOrDebug)
 # General C/C++ build settings
 # ----------------------------
 
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++14 -g" )
 if (NOT "$ENV{GCC_COLORS}" STREQUAL "")
 	# This will force color output from GCC even when you pipe through less
@@ -37,7 +38,7 @@ else (NOT "$ENV{GCC_COLORS}" STREQUAL "")
 endif (NOT "$ENV{GCC_COLORS}" STREQUAL "")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -Og" )
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG -O3" )
-include_directories( src/ )
+include_directories( "src/" )
 
 # -------------
 # Boost
@@ -55,7 +56,7 @@ set (CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} "-L${Boost_LIBRARY_DIRS}")
 # CUDA
 # -------------
 
-find_package(CUDA 7.5 QUIET REQUIRED)
+find_package(CUDA 8.0 QUIET REQUIRED)  # Not tested with CUDA 7.5 yet
 set(CUDA_LIBRARIES ${CUDA_LIBRARIES} ${CUDA_CUDART_LIBRARY} ${CUDA_cupti_LIBRARY})
 
 include(HandleCUDAComputeCapability)
@@ -103,7 +104,7 @@ include_directories(${CUB_INCLUDE_DIR})
 
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)	
-    # This is the top-level project.
+	# This is the top-level project.
 
 	if(NOT TARGET tags)
 	set_source_files_properties( tags PROPERTIES GENERATED true )
@@ -119,6 +120,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
 endif()
 
+# ---------------------------------------------------------
+# Before descending into subfolders and subrepositories...
+# ---------------------------------------------------------
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib/")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib/")
+
 # -----------------------------------
 # Subrepository: CUDA API wrappers
 # -----------------------------------
@@ -131,10 +139,6 @@ link_directories("${CMAKE_CURRENT_SOURCE_DIR}/${CUDA_API_WRAPPERS_SUBDIR}/lib")
 # -----------------------
 # Main target(s)
 # -----------------------
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "bin/")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "lib/")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "lib/")
 
 cuda_add_library(
 	giddy-kernels
@@ -149,6 +153,7 @@ cuda_add_library(
 	src/kernel_wrappers/decompression/run_position_encoding.cu
 	src/kernel_wrappers/decompression/discard_zero_bytes_variable.cu
 	src/kernel_wrappers/decompression/model.cu
+	src/kernels/resolve_launch_configuration.cpp
 #	OPTIONS RELEASE -O3 --use_fast_math
 )
 
@@ -164,5 +169,28 @@ cuda_add_library(
 #  target_link_libraries(some_executable_binary ${Boost_LIBRARIES} cuda-api-wrappers monetdb-buffer-pool cpp-util ${CUDA_LIBRARIES} ktkernels)
 #
 
-# We don't do installation for now
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "examples/bin/")
 
+	cuda_add_executable(
+		direct_use_of_kernel
+		EXCLUDE_FROM_ALL
+		examples/src/modes_of_use/direct_use_of_kernel.cu
+		src/cuda/printing.cpp # for debugging
+	)
+	target_link_libraries(direct_use_of_kernel giddy-kernels ${LIBDL_LIBRARIES} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} cuda-api-wrappers)
+
+	cuda_add_executable(
+		instantiation_of_wrapper
+		EXCLUDE_FROM_ALL
+		examples/src/modes_of_use/instantiation_of_wrapper.cu
+		src/cuda/printing.cpp # for debugging
+	)
+	target_link_libraries(instantiation_of_wrapper giddy-kernels ${LIBDL_LIBRARIES} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} cuda-api-wrappers)
+
+
+	add_custom_target(examples)
+	add_dependencies(examples direct_use_of_kernel instantiation_of_wrapper)
+endif()
+
+# We don't do installation for now
