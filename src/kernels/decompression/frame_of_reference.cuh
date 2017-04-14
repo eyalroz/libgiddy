@@ -107,7 +107,7 @@ public:
 		)
 	{
 		auto num_periods = util::div_rounding_up(data_length, modeling_period);
-		auto periods_per_block = device_properties.max_threads_per_block() / modeling_period;
+		auto periods_per_block = util::div_rounding_up(device_properties.max_threads_per_block(), modeling_period);
 
 		grid_construction_resolution            = block;
 		serialization_option                    = none;

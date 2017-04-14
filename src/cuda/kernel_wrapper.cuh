@@ -81,7 +81,6 @@ public:
 	 *
 	 * @param device_properties relevant properties of the CUDA device on
 	 * which the kernel is to be launched
-	 * @param kernel_function_attributes function-specific attributes
 	 * @param extra_arguments the resolver might take custom arguments
 	 * which this, the base class, is not aware of - yet the user may be;
 	 * they are therefore passed anonymously and with type 'hiding' via a
@@ -94,11 +93,37 @@ public:
 	 */
 	virtual launch_configuration_t resolve_launch_configuration(
 		device::properties_t            device_properties,
+		arguments_type                  extra_arguments,
+		launch_configuration_limits_t   limits = {} ) const
+	{
+		auto device_function_attributes = get_device_function().attributes();
+		return resolve_launch_configuration(
+			device_properties, device_function_attributes, extra_arguments, limits);
+	}
+
+	/**
+	 * @brief a performance-oriented variant in which the wrapper will not
+	 * have to trouble the driver to retrieve device function properties again.
+	 * Frankly, this is a bit silly, since the arguments_type performance is
+	 * currently quite dismal; but if we replaced it with, say, an @ref std::array
+	 * or even an @ref std::vector likely to be in cache after just having been
+	 * populated, config resolution performance could actually brought down to
+	 * something reasonable.
+	 *
+	 * @param kernel_function_attributes CUDA attribute of the {@code __global__}
+	 * function which constitues the actual kernel (i.e. the function each instance
+	 * of this class wraps).
+	 */
+
+	virtual launch_configuration_t resolve_launch_configuration(
+		device::properties_t            device_properties,
 		device_function::attributes_t   kernel_function_attributes,
 		arguments_type                  extra_arguments,
 		launch_configuration_limits_t   limits = {} ) const = 0;
 
 	virtual const cuda::device_function_t get_device_function() const = 0;
+
+
 
 	virtual ~kernel_t() { }
 
@@ -111,53 +136,81 @@ namespace kernel {
 
 template <typename... KernelParameters>
 inline void enqueue_launch(
-	const kernel_t&                  kernel_wrapper,
+	const kernel_t&                  kernel,
 	stream::id_t                     stream_id,
 	const launch_configuration_t&    launch_config,
 	KernelParameters...              parameters)
 {
 	using kernel_function_type = void (*)(KernelParameters...);
 	auto kernel_function = reinterpret_cast<kernel_function_type>(
-		kernel_wrapper.get_device_function().ptr());
+		kernel.get_device_function().ptr());
 	cuda::enqueue_launch<kernel_function_type, KernelParameters...>(
 		kernel_function, stream_id, launch_config, parameters...);
 }
 
 template <typename... KernelParameters>
 inline void enqueue_launch(
-	const kernel_t&                  kernel_wrapper,
+	const kernel_t&                  kernel,
+	const launch_configuration_t&    launch_config,
+	KernelParameters...              parameters)
+{
+	enqueue_launch<KernelParameters...>(
+		kernel, cuda::stream::default_stream_id, launch_config,
+		parameters...);
+}
+
+template <typename... KernelParameters>
+inline void enqueue_launch(
+	const kernel_t&                  kernel,
 	device::id_t                     device_id,
 	stream::id_t                     stream_id,
 	const launch_configuration_t&    launch_config,
 	KernelParameters...              parameters)
 {
 	device::current::scoped_override_t<false> using_device(device_id);
-	enqueue_launch(kernel_wrapper, stream_id, launch_config, parameters...);
+	enqueue_launch(kernel, stream_id, launch_config, parameters...);
 }
 
 inline launch_configuration_t resolve_launch_configuration(
-	kernel_t&                       kernel_wrapper,
+	kernel_t&                       kernel,
 	device::properties_t            device_properties,
 	kernel_t::arguments_type        extra_arguments,
 	launch_configuration_limits_t   limits = {})
 {
-	return kernel_wrapper.resolve_launch_configuration(
+	return kernel.resolve_launch_configuration(
 		device_properties,
-		kernel_wrapper.get_device_function().attributes(),
+		kernel.get_device_function().attributes(),
 		extra_arguments,
 		limits);
 }
 
 inline launch_configuration_t resolve_launch_configuration(
-	kernel_t&                       kernel_wrapper,
+	kernel_t&                       kernel,
 	device::id_t                    device_id,
 	kernel_t::arguments_type        extra_arguments,
 	launch_configuration_limits_t   limits = {})
 {
 	auto device_properties = cuda::device::get(device_id).properties();
 	return resolve_launch_configuration(
-		kernel_wrapper, device_properties, extra_arguments, limits);
+		kernel, device_properties, extra_arguments, limits);
 }
+
+template <typename... ResolutionParameters>
+launch_configuration_t resolve_launch_configuration(
+	kernel_t&                       kernel,
+	device::properties_t            device_properties,
+	device_function::attributes_t   kernel_function_attributes,
+	launch_configuration_limits_t   limits = { },
+	ResolutionParameters...         extra_params)
+{
+	// TODO: Swap the limits and the extra parameters
+	return kernel.resolve_launch_configuration(
+		device_properties,
+		extra_params...,
+		limits);
+}
+
+
 
 } // namespace kernel
 

@@ -161,7 +161,7 @@ grid_block_dimension_t determine_max_threads_per_block(
 			      .max_threads_per_block.value_or(params.device_properties.maxThreadsDim[0]);
 		break;
 	default: // can't get here
-		throw  util::invalid_argument("Unsupported grid construction resolution");
+		throw std::invalid_argument("Unsupported grid construction resolution");
 
 	}
 	threads_per_block_constraints.by_num_length_units =
@@ -282,7 +282,7 @@ static size_t resolve_num_blocks(
 	case resolution_t::block:
 		num_units_covered_by_a_single_full_block = 1; break;
 	default: // can't get here
-		throw  util::invalid_argument("Unsupported grid construction resolution");
+		throw std::invalid_argument("Unsupported grid construction resolution");
 	}
 	auto num_blocks_covering_all_length_units =
 		util::div_rounding_up(effective_length, num_units_covered_by_a_single_full_block);
@@ -351,7 +351,7 @@ static size_t resolve_effective_length(
 		throw std::logic_error("kernel auto-serializes, making it "
 			"meaningless to set apply a serialization factor");
 	default: // can't get here
-		throw  util::invalid_argument("Unsupported serialization option");
+		throw std::invalid_argument("Unsupported serialization option");
 	}
 	// note: using the safer rather than the faster but overflowing variant
 	return (params.length > effective_serialization_factor) ?
@@ -362,9 +362,9 @@ static size_t resolve_effective_length(
 // TODO: Reduce serialization factor if we end up with fewer blocks than there
 // are processors on the GPU
 launch_configuration_t resolve_launch_configuration(
-	const params_t&                   params,
-	const limits_t                    limits,
-	optional<serialization_factor_t>  serialization_factor)
+	const params_t&                         params,
+	const limits_t                          limits,
+	cuda::optional<serialization_factor_t>  serialization_factor)
 {
 	// TODO: Perhaps push this logic down into apply_serialization and call
 	// it "apply_preserialization" or some such name?

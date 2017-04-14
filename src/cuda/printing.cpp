@@ -6,7 +6,7 @@
 #include "cuda/printing.h"
 
 #include "util/miscellany.hpp"
-#include "util/string.hpp"
+//i#include "util/string.hpp"
 
 #include <string>
 #include <sstream>
@@ -26,7 +26,7 @@ namespace cuda {
 // TODO: Convert to a streaming operator
 void list_device_properties(cudaDeviceProp properties_, std::ostream& os)
 {
-	util::ios_flags_saver flag_saver(os);
+	std::ios::fmtflags format_flags { os.flags() };
 	cuda::device::properties_t properties(properties_);
 	auto memory_bandwidth = properties.memoryClockRate * (properties.memoryBusWidth / CHAR_BIT);
 	os << left;
@@ -56,6 +56,7 @@ void list_device_properties(cudaDeviceProp properties_, std::ostream& os)
 	   << "Number of multiprocessors:       " << properties.multiProcessorCount << '\n'
 	   << "Kernel execution timeout:        " << (properties.kernelExecTimeoutEnabled ? "Enabled" : "Disabled") << '\n'
 	   << '\n';
+	os.flags(format_flags);
 	return;
 }
 
