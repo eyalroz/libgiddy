@@ -31,7 +31,7 @@ public:
 		device::properties_t           device_properties,
 		device_function::attributes_t  kernel_function_attributes,
 		size_t                         length,
-		size_t                         modeling_period,
+		size_t                         segment_length,
 		launch_configuration_limits_t  limits = { nullopt, nullopt, nullopt} ) const
 #ifdef __CUDACC__
 	{
@@ -39,7 +39,7 @@ public:
 			IndexSize, Uncompressed, Compressed, UnaryModelFunction
 		> params(
 			device_properties,
-			length, modeling_period);
+			length, segment_length);
 
 		return cuda::kernels::resolve_launch_configuration(params, limits);
 	}
@@ -54,17 +54,17 @@ template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed, typename UnaryModelFunction>
 launch_configuration_t kernel_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::resolve_launch_configuration(
-	device::properties_t            device_properties,
-	device_function::attributes_t kernel_function_attributes,
+	device::properties_t           device_properties,
+	device_function::attributes_t  kernel_function_attributes,
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	auto length          = any_cast<size_t>(extra_arguments.at("length"         ));
-	auto modeling_period = any_cast<size_t>(extra_arguments.at("modeling_period"));
+	auto length         = any_cast<size_t>(extra_arguments.at("length"        ));
+	auto segment_length = any_cast<size_t>(extra_arguments.at("segment_length"));
 
 	return resolve_launch_configuration(
 		device_properties, kernel_function_attributes,
-		length, modeling_period,
+		length, segment_length,
 		limits);
 }
 
@@ -80,20 +80,22 @@ void kernel_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_
 	using index_type = uint_t<IndexSize>;
 	using model_coefficients_type = const typename UnaryModelFunction::coefficients_type;
 
-	auto decompressed                = any_cast<Uncompressed*                  >(arguments.at("decompressed"                ));
-	auto compressed_input            = any_cast<const Compressed*              >(arguments.at("compressed_input"            ));
-	auto interval_model_coefficients = any_cast<const model_coefficients_type* >(arguments.at("interval_model_coefficients" ));
-	auto length                      = any_cast<index_type                     >(arguments.at("length"                      ));
-	auto modeling_period             = any_cast<index_type                     >(arguments.at("modeling_period"             ));
+	auto decompressed               = any_cast<Uncompressed*                  >(arguments.at("decompressed"               ));
+	auto compressed_input           = any_cast<const Compressed*              >(arguments.at("compressed_input"           ));
+	auto segment_model_coefficients = any_cast<const model_coefficients_type* >(arguments.at("segment_model_coefficients" ));
+	auto length                     = any_cast<index_type                     >(arguments.at("length"                     ));
+	auto segment_length             = any_cast<index_type                     >(arguments.at("segment_length"             ));
 
-	auto num_segments = util::div_rounding_up(length, modeling_period);
+	// Note: For every segment, we have a separate model (same family, different coefficients)
+
+	auto num_segments = util::div_rounding_up(length, segment_length);
 	auto num_blocks = launch_config.grid_dimensions.x;
 	auto segments_per_block = util::div_rounding_up(num_segments, num_blocks);
 
 	cuda::kernel::enqueue_launch(
 		*this, stream, launch_config,
-		decompressed, compressed_input, interval_model_coefficients,
-		length, modeling_period, segments_per_block
+		decompressed, compressed_input, segment_model_coefficients,
+		length, segment_length, segments_per_block
 	);
 }
 

@@ -4,6 +4,7 @@
 #include <typeinfo>
  
 #include "util/Factory.h"
+#include "util/type_name.hpp"
 #include <string>
 #include <exception>
 #include <memory>
@@ -43,15 +44,20 @@ protected:
 	// the sense of the template arguments.
 	static Key resolveSubclassKey(ConstructionArgs... args);
 
+
 	// Can't I return an rvalue reference and avoid pointers altogether?
-	static std::unique_ptr<Base> produceSubclass(ConstructionArgs... args) {
-		Key subclass_key = resolveSubclassKey(args...);
+	static std::unique_ptr<Base> produceSubclass(const Key& subclass_key, ConstructionArgs... args) {
 		if (!getSubclassFactory().canProduce(subclass_key)) {
 			throw std::invalid_argument(std::string("No subclass of the base type ")
-				+ typeid(Base).name() + " is registered with key \""
+				+ util::type_name<Base>() + " is registered with key \""
 				+ std::string(subclass_key) + "\"");
 		}
 		return getSubclassFactory().produce(subclass_key, args...);
+	}
+
+	static std::unique_ptr<Base> produceSubclass(ConstructionArgs... args) {
+		Key subclass_key = resolveSubclassKey(args...);
+		return produceSubclass(subclass_key, args...);
 	}
 
 	static bool canProduce(ConstructionArgs... args) {

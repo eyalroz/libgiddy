@@ -16,16 +16,15 @@ namespace registered {
 
 class kernel_t :
 	public cuda::kernel_t,
-	protected util::mixins::FactoryProducible<std::string, kernel_t>
+	public util::mixins::FactoryProducible<std::string, kernel_t>
 {
-protected:
+public:
 	using factory_key_type = std::string;
 	using parent = cuda::kernel_t;
-	using factory_producible_mixin_type = util::mixins::FactoryProducible<factory_key_type, parent>;
-
-public:
-	static void listSubclasses(std::ostream& os, bool be_verbose, const std::string& separator = "\n");
-
+	using factory_producible_mixin_type = util::mixins::FactoryProducible<factory_key_type, kernel_t>;
+	using factory_producible_mixin_type::produceSubclass;
+	using factory_producible_mixin_type::getSubclassFactory;
+		// Just in case you want to do something with all subclasses
 };
 
 namespace detail {

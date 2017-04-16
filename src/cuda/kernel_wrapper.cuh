@@ -94,7 +94,7 @@ public:
 	virtual launch_configuration_t resolve_launch_configuration(
 		device::properties_t            device_properties,
 		arguments_type                  extra_arguments,
-		launch_configuration_limits_t   limits = {} ) const
+		launch_configuration_limits_t   limits = { nullopt, nullopt, nullopt } ) const
 	{
 		auto device_function_attributes = get_device_function().attributes();
 		return resolve_launch_configuration(
@@ -119,7 +119,7 @@ public:
 		device::properties_t            device_properties,
 		device_function::attributes_t   kernel_function_attributes,
 		arguments_type                  extra_arguments,
-		launch_configuration_limits_t   limits = {} ) const = 0;
+		launch_configuration_limits_t   limits = { nullopt, nullopt, nullopt } ) const = 0;
 
 	virtual const cuda::device_function_t get_device_function() const = 0;
 

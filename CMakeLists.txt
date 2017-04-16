@@ -157,6 +157,9 @@ cuda_add_library(
 #	OPTIONS RELEASE -O3 --use_fast_math
 )
 
+SET(GIDDY_KERNELS "-Wl,--whole-archive lib/libgiddy-kernels.a -Wl,--no-whole-archive")
+
+
 #Note: When you link a binary with giddy, you will need to link with:
 #
 # * The Boost libraries
@@ -188,9 +191,17 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 	)
 	target_link_libraries(instantiation_of_wrapper giddy-kernels ${LIBDL_LIBRARIES} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} cuda-api-wrappers)
 
+	cuda_add_executable(
+		factory_provided_type_erased_wrapper
+		EXCLUDE_FROM_ALL
+		examples/src/modes_of_use/factory_provided_type_erased_wrapper.cu
+		src/cuda/printing.cpp # for debugging
+	)
+	target_link_libraries(factory_provided_type_erased_wrapper giddy-kernels ${GIDDY_KERNELS} ${LIBDL_LIBRARIES} ${Boost_LIBRARIES} ${CUDA_LIBRARIES} cuda-api-wrappers)
+
 
 	add_custom_target(examples)
-	add_dependencies(examples direct_use_of_kernel instantiation_of_wrapper)
+	add_dependencies(examples direct_use_of_kernel instantiation_of_wrapper factory_provided_type_erased_wrapper)
 endif()
 
 # We don't do installation for now

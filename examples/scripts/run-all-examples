@@ -5,10 +5,11 @@ examples_dir=${1:-examples/bin}
 echo -e "Running all example programs...\n"
 { cd "$examples_dir"; find . -type f -executable; } | while read example_file; do
 	relative_path=$( echo "$example_file" | cut -c3- ) # cuts out the initial "./" which find prepends
+	example_program_binary="$examples_dir/$relative_path"
 	echo -e "--------------------------------------------"
 	echo -e " Example: $relative_path"
 	echo -e "--------------------------------------------"
 	echo
-	"$examples_dir/$relative_path" && echo "SUCCESS" || echo "FAILURE"
+	$example_program_binary && echo "SUCCESS" || echo "FAILURE"
 	echo
 done
