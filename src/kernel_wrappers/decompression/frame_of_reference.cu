@@ -22,17 +22,30 @@ enum : serialization_factor_t { DefaultSerializationFactor = 16 };
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed, typename UnaryModelFunction>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 public:
 	using model_coefficients_type = typename UnaryModelFunction::coefficients_type;
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t           device_properties,
 		device_function::attributes_t  kernel_function_attributes,
 		size_t                         length,
 		size_t                         modeling_period,
-		launch_configuration_limits_t  limits = { nullopt, nullopt, nullopt} ) const;
+		launch_configuration_limits_t  limits = { nullopt, nullopt, nullopt} ) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			IndexSize, Uncompressed, Compressed, UnaryModelFunction
+		> params(
+			device_properties,
+			length, modeling_period);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
 };
 
 #ifdef __CUDACC__
@@ -40,27 +53,7 @@ public:
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed, typename UnaryModelFunction>
-launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::resolve_launch_configuration(
-	device::properties_t           device_properties,
-	device_function::attributes_t  kernel_function_attributes,
-	size_t                         length,
-	size_t                         modeling_period,
-	launch_configuration_limits_t  limits) const
-{
-	namespace kernel_ns = cuda::kernels::decompression::frame_of_reference;
-
-	kernel_ns::launch_config_resolution_params_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction> params(
-		device_properties,
-		length, modeling_period);
-
-	return cuda::kernels::resolve_launch_configuration(params, limits);
-}
-
-
-template<
-	unsigned IndexSize, typename Uncompressed,
-	typename Compressed, typename UnaryModelFunction>
-launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::resolve_launch_configuration(
+launch_configuration_t kernel_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::resolve_launch_configuration(
 	device::properties_t            device_properties,
 	device_function::attributes_t kernel_function_attributes,
 	arguments_type                 extra_arguments,
@@ -70,14 +63,16 @@ launch_configuration_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFun
 	auto modeling_period = any_cast<size_t>(extra_arguments.at("modeling_period"));
 
 	return resolve_launch_configuration(
-		device_properties, kernel_function_attributes, length, modeling_period, limits);
+		device_properties, kernel_function_attributes,
+		length, modeling_period,
+		limits);
 }
 
 
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed,typename UnaryModelFunction>
-void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_launch(
+void kernel_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -105,7 +100,7 @@ void kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::enqueue_la
 template<
 	unsigned IndexSize, typename Uncompressed,
 	typename Compressed,typename UnaryModelFunction>
-const device_function_t kernel<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::get_device_function() const
+const device_function_t kernel_t<IndexSize, Uncompressed, Compressed, UnaryModelFunction>::get_device_function() const
 {
 	return reinterpret_cast<const void*>(cuda::kernels::decompression::frame_of_reference::decompress
 		<IndexSize, Uncompressed, Compressed, UnaryModelFunction>);
@@ -128,22 +123,22 @@ static_block {
 	 * __fmul_[rn,rz,ru,rd](x,y),   __fadd_[rn,rz,ru,rd](x,y) etc intrinsics
 	 */
 
-	//       IndexSize  Uncompressed   Compressed   UnaryModelFunction
+	//         IndexSize  Uncompressed   Compressed   UnaryModelFunction
 	//-------------------------------------------------------------------------------
-	kernel < 4,         int16_t,       int8_t,      unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
-	kernel < 4,         int32_t,       int8_t,      unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
-	kernel < 4,         int32_t,       int16_t,     unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
-//	kernel < 4,         int16_t,       int8_t,      unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
-//	kernel < 4,         int32_t,       int8_t,      unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
-//	kernel < 4,         int32_t,       int16_t,     unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
-	kernel < 8,         int32_t,       int16_t,     unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
-	kernel < 8,         int32_t,       int16_t,     unary_models::linear  < 8, int32_t >  >::registerInSubclassFactory();
-	kernel < 4,         int16_t,       int8_t,      unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
-	kernel < 4,         int32_t,       int8_t,      unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
-	kernel < 4,         int32_t,       int16_t,     unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
-//	kernel < 4,         int16_t,       int8_t,      unary_models::constant< 4, float   >  >::registerInSubclassFactory();
-//	kernel < 4,         int32_t,       int8_t,      unary_models::constant< 4, float   >  >::registerInSubclassFactory();
-//	kernel < 4,         int32_t,       int16_t,     unary_models::constant< 4, float   >  >::registerInSubclassFactory();
+	kernel_t < 4,         int16_t,       int8_t,      unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 4,         int32_t,       int8_t,      unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 4,         int32_t,       int16_t,     unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int16_t,       int8_t,      unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int32_t,       int8_t,      unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int32_t,       int16_t,     unary_models::linear  < 4, float   >  >::registerInSubclassFactory();
+	kernel_t < 8,         int32_t,       int16_t,     unary_models::linear  < 4, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 8,         int32_t,       int16_t,     unary_models::linear  < 8, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 4,         int16_t,       int8_t,      unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 4,         int32_t,       int8_t,      unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
+	kernel_t < 4,         int32_t,       int16_t,     unary_models::constant< 4, int32_t >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int16_t,       int8_t,      unary_models::constant< 4, float   >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int32_t,       int8_t,      unary_models::constant< 4, float   >  >::registerInSubclassFactory();
+//	kernel_t < 4,         int32_t,       int16_t,     unary_models::constant< 4, float   >  >::registerInSubclassFactory();
 }
 
 #endif /* __CUDACC__ */

@@ -12,10 +12,10 @@ namespace run_position_encoding {
 // TODO: This currently ignores the possibility of a sorted variant of the kernel
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned PositionOffsetSize, bool PositionsAreRelative>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 
 public:
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
 	using uncompressed_type    = util::uint_t<UncompressedSize>;
 	using position_offset_type = util::uint_t<PositionOffsetSize>;
@@ -25,30 +25,49 @@ public:
 	static_assert(PositionsAreRelative or sizeof(position_offset_type) >= IndexSize,
 		"If run positions are in absolute values, their type must be able to cover the entire "
 		"potential range of data (i.e. their type must be at least as large as the size type");
+
+
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         uncompressed_length,
+		size_t                         position_anchoring_period,
+		launch_configuration_limits_t  limits) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative
+		> params(
+			device_properties,
+			uncompressed_length, position_anchoring_period);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
 };
 
 #ifdef __CUDACC__
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned PositionOffsetSize, bool PositionsAreRelative>
-launch_configuration_t kernel<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::resolve_launch_configuration(
+launch_configuration_t kernel_t<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::resolve_launch_configuration(
 	device::properties_t           device_properties,
 	device_function::attributes_t  kernel_function_attributes,
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	namespace kernel_ns = cuda::kernels::decompression::run_position_encoding;
-
 	auto uncompressed_length       = any_cast<size_t>(extra_arguments.at("uncompressed_length"));
 	auto position_anchoring_period = any_cast<size_t>(extra_arguments.at("position_anchoring_period"));
-	kernel_ns::launch_config_resolution_params_t<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative> params(
-		device_properties,
-		uncompressed_length, position_anchoring_period);
 
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes,
+		uncompressed_length, position_anchoring_period,
+		limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned PositionOffsetSize, bool PositionsAreRelative>
-void kernel<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::enqueue_launch(
+void kernel_t<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -78,7 +97,7 @@ void kernel<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelativ
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned PositionOffsetSize, bool PositionsAreRelative>
-const device_function_t kernel<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::get_device_function() const
+const device_function_t kernel_t<IndexSize, UncompressedSize, PositionOffsetSize, PositionsAreRelative>::get_device_function() const
 {
 	return reinterpret_cast<const void*>(
 		cuda::kernels::decompression::run_position_encoding::decompress<
@@ -91,24 +110,24 @@ static_block {
 	constexpr bool relative = true;
 	constexpr bool absolute = false;
 
-	//       IndexSize   Datum   RunPosition  PositionsAreRelative
+	//         IndexSize   Datum   RunPosition  PositionsAreRelative
 	//-------------------------------------------------------------------------------
 
-	kernel < 4,          1,      2,           relative >::registerInSubclassFactory();
-	kernel < 4,          2,      2,           relative >::registerInSubclassFactory();
-	kernel < 4,          4,      2,           relative >::registerInSubclassFactory();
-	kernel < 4,          8,      2,           relative >::registerInSubclassFactory();
+	kernel_t < 4,          1,      2,           relative >::registerInSubclassFactory();
+	kernel_t < 4,          2,      2,           relative >::registerInSubclassFactory();
+	kernel_t < 4,          4,      2,           relative >::registerInSubclassFactory();
+	kernel_t < 4,          8,      2,           relative >::registerInSubclassFactory();
 
-	kernel < 8,          4,      2,           relative >::registerInSubclassFactory();
+	kernel_t < 8,          4,      2,           relative >::registerInSubclassFactory();
 
 	// and now the absolutely-positioned
 
-	kernel < 4,          1,      4,           absolute >::registerInSubclassFactory();
-	kernel < 4,          2,      4,           absolute >::registerInSubclassFactory();
-	kernel < 4,          4,      4,           absolute >::registerInSubclassFactory();
-	kernel < 4,          8,      4,           absolute >::registerInSubclassFactory();
+	kernel_t < 4,          1,      4,           absolute >::registerInSubclassFactory();
+	kernel_t < 4,          2,      4,           absolute >::registerInSubclassFactory();
+	kernel_t < 4,          4,      4,           absolute >::registerInSubclassFactory();
+	kernel_t < 4,          8,      4,           absolute >::registerInSubclassFactory();
 
-	kernel < 8,          4,      8,           absolute >::registerInSubclassFactory();
+	kernel_t < 8,          4,      8,           absolute >::registerInSubclassFactory();
 }
 #endif /* __CUDACC__ */
 

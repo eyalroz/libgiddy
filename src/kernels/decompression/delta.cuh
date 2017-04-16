@@ -17,7 +17,6 @@
 #include "kernels/common.cuh"
 #include "cuda/functors.hpp"
 #include "kernels/reduction/scan.cuh"
-#include "util/math.hpp"
 #include "cuda/on_device/primitives/grid.cuh"
 
 namespace cuda {

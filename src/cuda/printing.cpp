@@ -6,7 +6,6 @@
 #include "cuda/printing.h"
 
 #include "util/miscellany.hpp"
-//i#include "util/string.hpp"
 
 #include <string>
 #include <sstream>

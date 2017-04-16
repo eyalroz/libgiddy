@@ -281,6 +281,9 @@ public:
 			device_function_t(scatter<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>), nullopt
 		)
 	{
+		if (input_data_length == 0) {
+			throw std::invalid_argument("Zero-length scatters not currently supported");
+		}
 		// The i'th block applies the patches whose index (relative to
 		// all patches) starts at the i'th anchors (either until the next
 		// anchor or the end of the output). If there are less threads in

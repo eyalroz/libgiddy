@@ -17,37 +17,56 @@ using util::endianness_t;
 // TODO: This currently ignores the possibility of a sorted variant of the kernel
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 public:
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
 	using element_size_t     = unsigned; // code duplication with the kernel file!
 	using uncompressed_type = util::uint_t<UncompressedSize>;
 	using element_sizes_container_size_type = util::uint_t<ElementSizesContainerSize>;
+
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         length_in_elements,
+		size_t                         position_anchoring_period,
+		launch_configuration_limits_t  limits) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			IndexSize, UncompressedSize, ElementSizesContainerSize
+		> params(
+			device_properties,
+			length_in_elements, position_anchoring_period);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
+
 };
 
 #ifdef __CUDACC__
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-launch_configuration_t kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::resolve_launch_configuration(
+launch_configuration_t kernel_t<IndexSize, UncompressedSize, ElementSizesContainerSize>::resolve_launch_configuration(
 	device::properties_t            device_properties,
 	device_function::attributes_t kernel_function_attributes,
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	namespace kernel_ns = cuda::kernels::decompression::discard_zero_bytes::variable_width;
-
-	auto length_in_elements = any_cast<size_t>(extra_arguments.at("length_in_elements"));
+	auto length_in_elements        = any_cast<size_t>(extra_arguments.at("length_in_elements"       ));
 	auto position_anchoring_period = any_cast<size_t>(extra_arguments.at("position_anchoring_period"));
-	kernel_ns::launch_config_resolution_params_t<IndexSize, UncompressedSize, ElementSizesContainerSize> params(
-		device_properties,
-		length_in_elements, position_anchoring_period);
 
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes,
+		length_in_elements, position_anchoring_period,
+		limits);
 }
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-void kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::enqueue_launch(
+void kernel_t<IndexSize, UncompressedSize, ElementSizesContainerSize>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -74,7 +93,7 @@ void kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::enqueue_lau
 }
 
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
-const device_function_t kernel<IndexSize, UncompressedSize, ElementSizesContainerSize>::get_device_function() const
+const device_function_t kernel_t<IndexSize, UncompressedSize, ElementSizesContainerSize>::get_device_function() const
 {
 	return reinterpret_cast<const void*>(cuda::kernels::decompression::discard_zero_bytes::variable_width::decompress
 		<IndexSize, UncompressedSize, ElementSizesContainerSize>);
@@ -82,19 +101,19 @@ const device_function_t kernel<IndexSize, UncompressedSize, ElementSizesContaine
 
 
 static_block {
-	//       IndexSize  Uncompressed   ElementSizesContainerSize
+	//         IndexSize  Uncompressed   ElementSizesContainerSize
 	//--------------------------------------------------------------------------------------
-	kernel < 4,         2,             4 >::registerInSubclassFactory();
-	kernel < 4,         4,             4 >::registerInSubclassFactory();
-	kernel < 4,         8,             4 >::registerInSubclassFactory();
+	kernel_t < 4,         2,             4 >::registerInSubclassFactory();
+	kernel_t < 4,         4,             4 >::registerInSubclassFactory();
+	kernel_t < 4,         8,             4 >::registerInSubclassFactory();
 
-	kernel < 8,         2,             4 >::registerInSubclassFactory();
-	kernel < 8,         4,             4 >::registerInSubclassFactory();
-	kernel < 8,         8,             4 >::registerInSubclassFactory();
+	kernel_t < 8,         2,             4 >::registerInSubclassFactory();
+	kernel_t < 8,         4,             4 >::registerInSubclassFactory();
+	kernel_t < 8,         8,             4 >::registerInSubclassFactory();
 
-	kernel < 4,         2,             8 >::registerInSubclassFactory();
-	kernel < 4,         4,             8 >::registerInSubclassFactory();
-	kernel < 4,         8,             8 >::registerInSubclassFactory();
+	kernel_t < 4,         2,             8 >::registerInSubclassFactory();
+	kernel_t < 4,         4,             8 >::registerInSubclassFactory();
+	kernel_t < 4,         8,             8 >::registerInSubclassFactory();
 }
 
 #endif /* __CUDACC__ */

@@ -362,9 +362,9 @@ static size_t resolve_effective_length(
 // TODO: Reduce serialization factor if we end up with fewer blocks than there
 // are processors on the GPU
 launch_configuration_t resolve_launch_configuration(
-	const params_t&                         params,
-	const limits_t                          limits,
-	cuda::optional<serialization_factor_t>  serialization_factor)
+	const params_t&                   params,
+	const limits_t&                   limits,
+	optional<serialization_factor_t>  serialization_factor)
 {
 	// TODO: Perhaps push this logic down into apply_serialization and call
 	// it "apply_preserialization" or some such name?

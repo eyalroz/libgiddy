@@ -18,10 +18,10 @@ __forceinline__ __device__ void gather(
 	uint_t<ElementSize>*           __restrict__  reordered_data,
 	const uint_t<ElementSize>*     __restrict__  data,
 	const uint_t<InputIndexSize>*  __restrict__  indices,
-	size_t                                             data_length,
+	size_t                                       data_length,
 	const uint_t<OutputIndexSize>                num_indices,
-	bool                                               cache_data_in_shared_memory,
-	serialization_factor_t                             serialization_factor) // TODO: It looks like we're not using this right now
+	bool                                         cache_data_in_shared_memory,
+	serialization_factor_t                       serialization_factor) // TODO: It looks like we're not using this right now
 {
 	using element_type = uint_t<ElementSize>;
 	using input_index_type = uint_t<InputIndexSize>;
@@ -153,10 +153,10 @@ __global__ void gather(
 	uint_t<ElementSize>*           __restrict__  reordered_data,
 	const uint_t<ElementSize>*     __restrict__  data,
 	const uint_t<InputIndexSize>*  __restrict__  indices,
-	size_t                                             data_length,
+	size_t                                       data_length,
 	const uint_t<OutputIndexSize>                num_indices,
-	bool                                               cache_data_in_shared_memory,
-	serialization_factor_t                             serialization_factor)
+	bool                                         cache_data_in_shared_memory,
+	serialization_factor_t                       serialization_factor)
 {
 	detail::gather<OutputIndexSize, ElementSize, InputIndexSize> (
 		reordered_data, data, indices, data_length, num_indices,

@@ -10,43 +10,56 @@ namespace scatter {
 namespace compressed_indices {
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize = InputIndexSize>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 public:
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
 	using element_type      = util::uint_t<ElementSize>;
 	using input_index_type  = util::uint_t<InputIndexSize>;
 	using output_index_type = util::uint_t<OutputIndexSize>;
 	using run_length_type   = util::uint_t<RunLengthSize>;
 
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         input_data_length,
+		size_t                         anchoring_period,
+		launch_configuration_limits_t  limits) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize
+		> params(
+			device_properties,
+			input_data_length, anchoring_period);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
 };
 
 #ifdef __CUDACC__
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize>
-launch_configuration_t kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::resolve_launch_configuration(
+launch_configuration_t kernel_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::resolve_launch_configuration(
 	device::properties_t             device_properties,
 	device_function::attributes_t    kernel_function_attributes,
 	arguments_type                   extra_arguments,
 	launch_configuration_limits_t    limits) const
 {
-	namespace kernel_ns = cuda::kernels::scatter::compressed_indices;
-
 	auto input_data_length = any_cast<size_t>(extra_arguments.at("input_data_length"));
 	auto anchoring_period  = any_cast<size_t>(extra_arguments.at("anchoring_period"));
 
-	if (input_data_length == 0) {
-		throw std::invalid_argument("Zero-length scatters not currently supported");
-	}
-
-	kernel_ns::launch_config_resolution_params_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize> params(
-		device_properties, input_data_length, anchoring_period);
-
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes,
+		input_data_length, anchoring_period,
+		limits);
 }
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize>
-void kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::enqueue_launch(
+void kernel_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::enqueue_launch(
 	stream::id_t                      stream,
 	const launch_configuration_t&    launch_config,
 	arguments_type                   arguments) const
@@ -87,7 +100,7 @@ void kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::enqueu
 }
 
 template<unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize>
-const cuda::device_function_t kernel<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::get_device_function() const
+const cuda::device_function_t kernel_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::get_device_function() const
 {
 	return {
 		cuda::kernels::scatter::compressed_indices::scatter
@@ -99,39 +112,39 @@ const cuda::device_function_t kernel<OutputIndexSize, ElementSize, InputIndexSiz
 static_block {
 	//      OutputIndexSize  ElementSize  InputIndexSize
 	//-----------------------------------------------------------------------
-	kernel< 4,               1,           1 >::registerInSubclassFactory();
-	kernel< 4,               1,           2 >::registerInSubclassFactory();
-	kernel< 4,               1,           4 >::registerInSubclassFactory();
-	kernel< 4,               1,           8 >::registerInSubclassFactory();
-	kernel< 4,               2,           1 >::registerInSubclassFactory();
-	kernel< 4,               2,           2 >::registerInSubclassFactory();
-	kernel< 4,               2,           4 >::registerInSubclassFactory();
-	kernel< 4,               2,           8 >::registerInSubclassFactory();
-	kernel< 4,               4,           1 >::registerInSubclassFactory();
-	kernel< 4,               4,           2 >::registerInSubclassFactory();
-	kernel< 4,               4,           4 >::registerInSubclassFactory();
-	kernel< 4,               4,           8 >::registerInSubclassFactory();
-	kernel< 4,               8,           1 >::registerInSubclassFactory();
-	kernel< 4,               8,           2 >::registerInSubclassFactory();
-	kernel< 4,               8,           4 >::registerInSubclassFactory();
-	kernel< 4,               8,           8 >::registerInSubclassFactory();
+	kernel_t< 4,               1,           1 >::registerInSubclassFactory();
+	kernel_t< 4,               1,           2 >::registerInSubclassFactory();
+	kernel_t< 4,               1,           4 >::registerInSubclassFactory();
+	kernel_t< 4,               1,           8 >::registerInSubclassFactory();
+	kernel_t< 4,               2,           1 >::registerInSubclassFactory();
+	kernel_t< 4,               2,           2 >::registerInSubclassFactory();
+	kernel_t< 4,               2,           4 >::registerInSubclassFactory();
+	kernel_t< 4,               2,           8 >::registerInSubclassFactory();
+	kernel_t< 4,               4,           1 >::registerInSubclassFactory();
+	kernel_t< 4,               4,           2 >::registerInSubclassFactory();
+	kernel_t< 4,               4,           4 >::registerInSubclassFactory();
+	kernel_t< 4,               4,           8 >::registerInSubclassFactory();
+	kernel_t< 4,               8,           1 >::registerInSubclassFactory();
+	kernel_t< 4,               8,           2 >::registerInSubclassFactory();
+	kernel_t< 4,               8,           4 >::registerInSubclassFactory();
+	kernel_t< 4,               8,           8 >::registerInSubclassFactory();
 
-	kernel< 8,               1,           1 >::registerInSubclassFactory();
-	kernel< 8,               1,           2 >::registerInSubclassFactory();
-	kernel< 8,               1,           4 >::registerInSubclassFactory();
-	kernel< 8,               1,           8 >::registerInSubclassFactory();
-	kernel< 8,               2,           1 >::registerInSubclassFactory();
-	kernel< 8,               2,           2 >::registerInSubclassFactory();
-	kernel< 8,               2,           4 >::registerInSubclassFactory();
-	kernel< 8,               2,           8 >::registerInSubclassFactory();
-	kernel< 8,               4,           1 >::registerInSubclassFactory();
-	kernel< 8,               4,           2 >::registerInSubclassFactory();
-	kernel< 8,               4,           4 >::registerInSubclassFactory();
-	kernel< 8,               4,           8 >::registerInSubclassFactory();
-	kernel< 8,               8,           1 >::registerInSubclassFactory();
-	kernel< 8,               8,           2 >::registerInSubclassFactory();
-	kernel< 8,               8,           4 >::registerInSubclassFactory();
-	kernel< 8,               8,           8 >::registerInSubclassFactory();
+	kernel_t< 8,               1,           1 >::registerInSubclassFactory();
+	kernel_t< 8,               1,           2 >::registerInSubclassFactory();
+	kernel_t< 8,               1,           4 >::registerInSubclassFactory();
+	kernel_t< 8,               1,           8 >::registerInSubclassFactory();
+	kernel_t< 8,               2,           1 >::registerInSubclassFactory();
+	kernel_t< 8,               2,           2 >::registerInSubclassFactory();
+	kernel_t< 8,               2,           4 >::registerInSubclassFactory();
+	kernel_t< 8,               2,           8 >::registerInSubclassFactory();
+	kernel_t< 8,               4,           1 >::registerInSubclassFactory();
+	kernel_t< 8,               4,           2 >::registerInSubclassFactory();
+	kernel_t< 8,               4,           4 >::registerInSubclassFactory();
+	kernel_t< 8,               4,           8 >::registerInSubclassFactory();
+	kernel_t< 8,               8,           1 >::registerInSubclassFactory();
+	kernel_t< 8,               8,           2 >::registerInSubclassFactory();
+	kernel_t< 8,               8,           4 >::registerInSubclassFactory();
+	kernel_t< 8,               8,           8 >::registerInSubclassFactory();
 
 }
 

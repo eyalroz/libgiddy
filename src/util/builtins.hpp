@@ -3,7 +3,6 @@
 
 #include <climits>
 #include <cstdint>
-#include <utility> // for std::pair
 
 // Move this out of here, it should really not be CUDA-specific
 // (but should have its own small specific header, perhaps with some other related definitions

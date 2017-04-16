@@ -13,7 +13,7 @@ void decompress_on_device(
 {
 	namespace kernel_ns = cuda::kernels::decompression::frame_of_reference;
 
-	kernel_ns::kernel<sizeof(index_type), uncompressed_type, compressed_type, model_type> kernel;
+	kernel_ns::kernel_t<sizeof(index_type), uncompressed_type, compressed_type, model_type> kernel;
 
 	auto current_device = cuda::device::current::get();
 	auto device_properties = current_device.properties();

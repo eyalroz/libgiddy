@@ -15,34 +15,51 @@ using bitmap_index_t  = unsigned char;
 // TODO: This currently ignores the possibility of a sorted variant of the kernel
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary = true>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 public:
 	using uncompressed_type = util::uint_t<UncompressedSize>;
 	using bitmap_index_type = unsigned char;
 
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
+
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         length,
+		launch_configuration_limits_t  limits) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary
+		> params(
+			device_properties,
+			length);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
 };
 
 #ifdef __CUDACC__
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary>
-launch_configuration_t kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::resolve_launch_configuration(
+launch_configuration_t kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::resolve_launch_configuration(
 	device::properties_t            device_properties,
 	device_function::attributes_t kernel_function_attributes,
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	namespace kernel_ns = cuda::kernels::decompression::incidence_bitmaps;
-
 	auto length = any_cast<size_t>(extra_arguments.at("length"));
-	kernel_ns::launch_config_resolution_params_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary> params(
-		device_properties,
-		length);
 
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes,
+		length,
+		limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary>
-void kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::enqueue_launch(
+void kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::enqueue_launch(
 	stream::id_t                   stream,
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
@@ -63,7 +80,7 @@ void kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary>
-const device_function_t kernel<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::get_device_function() const
+const device_function_t kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::get_device_function() const
 {
 	return reinterpret_cast<const void*>(cuda::kernels::decompression::incidence_bitmaps
 		::decompress<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>);
@@ -71,13 +88,13 @@ const device_function_t kernel<IndexSize, UncompressedSize, BitmapAlignmentInInt
 
 
 static_block {
-	//                 IndexSize      UncompressedSize  BitmapAlignmentInInts  UseDictionary
+	//                   IndexSize      UncompressedSize  BitmapAlignmentInInts  UseDictionary
 	//----------------------------------------------------------------------------------
-	kernel < 4,        1,                2,                     true  >::registerInSubclassFactory();
-	kernel < 4,        2,                2,                     true  >::registerInSubclassFactory();
-	kernel < 4,        4,                2,                     true  >::registerInSubclassFactory();
-	kernel < 4,        8,                2,                     true  >::registerInSubclassFactory();
-	kernel < 4,        1,                2,                     false >::registerInSubclassFactory();
+	kernel_t < 4,        1,                2,                     true  >::registerInSubclassFactory();
+	kernel_t < 4,        2,                2,                     true  >::registerInSubclassFactory();
+	kernel_t < 4,        4,                2,                     true  >::registerInSubclassFactory();
+	kernel_t < 4,        8,                2,                     true  >::registerInSubclassFactory();
+	kernel_t < 4,        1,                2,                     false >::registerInSubclassFactory();
 }
 
 #endif /* __CUDACC__ */

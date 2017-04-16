@@ -12,38 +12,56 @@ namespace delta {
 // TODO: This currently ignores the possibility of a sorted variant of the kernel
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-class kernel: public cuda::registered::kernel_t {
+class kernel_t : public cuda::registered::kernel_t {
 public:
-	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel);
+	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
 	using compressed_type   = util::uint_t<CompressedSize>;
 	using uncompressed_type = util::uint_t<UncompressedSize>;
+
+	launch_configuration_t resolve_launch_configuration(
+		device::properties_t           device_properties,
+		device_function::attributes_t  kernel_function_attributes,
+		size_t                         length,
+		size_t                         baselining_period,
+		launch_configuration_limits_t  limits) const
+#ifdef __CUDACC__
+	{
+		launch_config_resolution_params_t<
+			IndexSize, UncompressedSize, CompressedSize
+		> params(
+			device_properties,
+			length, baselining_period,
+			limits.dynamic_shared_memory);
+
+		return cuda::kernels::resolve_launch_configuration(params, limits);
+	}
+#else
+	;
+#endif
+
 };
 
 #ifdef __CUDACC__
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-inline launch_configuration_t kernel<IndexSize, UncompressedSize, CompressedSize>::resolve_launch_configuration(
-		device::properties_t           device_properties,
-		device_function::attributes_t  kernel_function_attributes,
-		arguments_type                 extra_arguments,
-		launch_configuration_limits_t  limits) const
+inline launch_configuration_t kernel_t<IndexSize, UncompressedSize, CompressedSize>::resolve_launch_configuration(
+	device::properties_t           device_properties,
+	device_function::attributes_t  kernel_function_attributes,
+	arguments_type                 extra_arguments,
+	launch_configuration_limits_t  limits) const
 {
-	namespace kernel_ns = cuda::kernels::decompression::delta;
-
-	auto length            = any_cast<size_t>(extra_arguments.at("length"));
+	auto length            = any_cast<size_t>(extra_arguments.at("length"           ));
 	auto baselining_period = any_cast<size_t>(extra_arguments.at("baselining_period"));
 
-	kernel_ns::launch_config_resolution_params_t<IndexSize, UncompressedSize, CompressedSize> params(
-		device_properties,
+	return resolve_launch_configuration(
+		device_properties, kernel_function_attributes,
 		length, baselining_period,
-		limits.dynamic_shared_memory);
-
-	return cuda::kernels::resolve_launch_configuration(params, limits);
+		limits);
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-inline void kernel<IndexSize, UncompressedSize, CompressedSize>::enqueue_launch(
+inline void kernel_t<IndexSize, UncompressedSize, CompressedSize>::enqueue_launch(
 		stream::id_t                   stream,
 		const launch_configuration_t&  launch_config,
 		arguments_type                 arguments) const
@@ -64,27 +82,27 @@ inline void kernel<IndexSize, UncompressedSize, CompressedSize>::enqueue_launch(
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned CompressedSize>
-inline const device_function_t kernel<IndexSize, UncompressedSize, CompressedSize>::get_device_function() const
+inline const device_function_t kernel_t<IndexSize, UncompressedSize, CompressedSize>::get_device_function() const
 {
 	return cuda::kernels::decompression::delta::decompress<IndexSize, UncompressedSize, CompressedSize>;
 }
 
 static_block {
-	//       IndexSize   UncompressedSize   CompressedSize
+	//         IndexSize   UncompressedSize   CompressedSize
 	// ----------------------------------------------------
-	kernel < 4,          2,                 1 >::registerInSubclassFactory();
-	kernel < 4,          4,                 1 >::registerInSubclassFactory();
-	kernel < 4,          4,                 2 >::registerInSubclassFactory();
-	kernel < 4,          8,                 1 >::registerInSubclassFactory();
-	kernel < 4,          8,                 2 >::registerInSubclassFactory();
-	kernel < 4,          8,                 4 >::registerInSubclassFactory();
+	kernel_t < 4,          2,                 1 >::registerInSubclassFactory();
+	kernel_t < 4,          4,                 1 >::registerInSubclassFactory();
+	kernel_t < 4,          4,                 2 >::registerInSubclassFactory();
+	kernel_t < 4,          8,                 1 >::registerInSubclassFactory();
+	kernel_t < 4,          8,                 2 >::registerInSubclassFactory();
+	kernel_t < 4,          8,                 4 >::registerInSubclassFactory();
 
-	kernel < 8,          2,                 1 >::registerInSubclassFactory();
-	kernel < 8,          4,                 1 >::registerInSubclassFactory();
-	kernel < 8,          4,                 2 >::registerInSubclassFactory();
-	kernel < 8,          8,                 1 >::registerInSubclassFactory();
-	kernel < 8,          8,                 2 >::registerInSubclassFactory();
-	kernel < 8,          8,                 4 >::registerInSubclassFactory();
+	kernel_t < 8,          2,                 1 >::registerInSubclassFactory();
+	kernel_t < 8,          4,                 1 >::registerInSubclassFactory();
+	kernel_t < 8,          4,                 2 >::registerInSubclassFactory();
+	kernel_t < 8,          8,                 1 >::registerInSubclassFactory();
+	kernel_t < 8,          8,                 2 >::registerInSubclassFactory();
+	kernel_t < 8,          8,                 4 >::registerInSubclassFactory();
 
 }
 
