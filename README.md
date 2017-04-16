@@ -85,11 +85,11 @@ The example code for this mode of use is found in [`examples/src/direct_use_of_k
 
 In this mode, we
 
-   * include the [kernel source file](https://github.com/eyalroz/libgiddy/blob/master/src/kernels/decompression/frame_of_reference.cuh); we now have a pointer to the kernel's device-side function
-   * include the launch config resolution mechanism header
-   * instantiate a launch configuration resolution parameters object, with the parameters specific to our launch
-   * call `resolve_launch_configuration()` function with the object we instantiated, obtaining a [`launch_configuration_t` struct](https://codedocs.xyz/eyalroz/cuda-api-wrappers/structcuda_1_1launch__configuration__t.html).
-   * perform a CUDA kernel launch, either using the API wrapper (which takes the device function pointer and a `launch_configuration_t`) or the plain vanilla way, extracting the fields of the `launch_configuration_t`.
+   * Include the [kernel source file](https://github.com/eyalroz/libgiddy/blob/master/src/kernels/decompression/frame_of_reference.cuh); we now have a pointer to the kernel's device-side function.
+   * Include the launch config resolution mechanism header.
+   * Instantiate a launch configuration resolution parameters object, with the parameters specific to our launch.
+   * Call `resolve_launch_configuration()` function with the object we instantiated, obtaining a [`launch_configuration_t` struct](https://codedocs.xyz/eyalroz/cuda-api-wrappers/structcuda_1_1launch__configuration__t.html).
+   * Perform a CUDA kernel launch, either using the API wrapper (which takes the device function pointer and a `launch_configuration_t`) or the plain vanilla way, extracting the fields of the `launch_configuration_t`.
    
 ### <a name="instantiation-of-wrapper">Instantiation of the specific kernel launch wrapper</a>
 
@@ -97,10 +97,10 @@ The example code for this mode of use is found in [`examples/src/instantiation_o
 
 Each decompression kernel has a corresponding thin wrapper class. An instance of the wrapper class has no state - no data members; we only use it for its vtable - its virtual methods, specific to the decompression scheme. Thus, in this mode of use, we:
 
-   * include the kernel's wrapper class [definition](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/decompression/frame_of_reference.cu)
-   * instantiate the wrapper class `cuda::kernels::decompression::frame_of_reference::kernel_t`
-   * call the wrapper's  `resolve_launch_configuration()` method with the appropriate parameters, obtaining a `launch_configuration_t` structure.
-   * call the freestanding function `cuda::kernel::enqueue_launch()` with our wrapper instance, the launch configuration, and the arguments we need to pass the kernel
+   * Include the kernel's wrapper class [definition](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/decompression/frame_of_reference.cu).
+   * Instantiate the wrapper class `cuda::kernels::decompression::frame_of_reference::kernel_t`
+   * Call the wrapper's  `resolve_launch_configuration()` method with the appropriate parameters, obtaining a `launch_configuration_t` structure.
+   * Call the freestanding function `cuda::kernel::enqueue_launch()` with our wrapper instance, the launch configuration, and the arguments we need to pass the kernel
    
 ### <a name="factory-provided-type-erased-wrapper">Use of factory-provided, type-erased wrapper</a>
 
@@ -108,7 +108,7 @@ The example code for this mode of use is found in [`examples/src/factory_provide
 
 The kernel wrappers are intended to allow a uniform interface for launching kernels. This uniformity is achieved by type-erasure: The wrappers' base class virtual methods wrappers' all take a map of [`boost::any`](http://www.boost.org/doc/libs/1_63_0/doc/html/any.html) objects; and it is up to the caller to pass the appropriate parameters in that map. Thus, in this mode, we:
 
-   * Include just the common base class header for the kernel wrappers ([`src/kernel_wrappers/registered_wrappers.h`](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/registered_wrapper.h))
+   * Include just the [common base class header](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/registered_wrapper.h) for the kernel wrappers.
    * Use the `cuda::registered::kernel_t` class' static method `produceSubclass()` - to instantiate specific the wrapper relevant to our scenario (named `"decompression::frame_of_reference::kernel_t<4u, int, short, cuda::functors::unary::parametric_model::constant<4u, int> >"`). What we actually hold is an `std::unique_ptr()` to such an instance.   
    * Prepare a type-erased map of parameters, and pass it to the `resolve_launch_configuration()` method of our isntance, obtaining a `launch_configuration_t` structure.
    * Prepare a second type-erased map of parameters, and pass it to the `enqueue_launch()` method of our isntance, along with the launch configuration structure we've just obtained.
