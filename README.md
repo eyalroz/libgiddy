@@ -4,7 +4,7 @@
 
 | Table of contents|
 |:----------------|
-|- [Why lightweight compression for GPU work?](#why)<br>- [What does this library comprise?](#what)<br>- [Which compression schemes are supported?](#which)<br>- [How to decompress data using Giddy?](#examples)<br>- [Performance](#performance)|
+|- [Why lightweight compression for GPU work?](#why)<br>- [What does this library comprise?](#what)<br>- [Which compression schemes are supported?](#which)<br>- [How to decompress data using Giddy?](#examples)<br>- [Performance](#performance)<br>- [Acknowledgements](#acks)|
 
 
 For questions, requests or bug reports - either use the [Issues page](https://github.com/eyalroz/libgiddy/issues) or [email me](mailto:eyalroz@technion.ac.il).
@@ -121,11 +121,10 @@ No code is currently provided for *compressing* data - neither on the device nor
 
 Some of the decompressors are well-optimized, some need more work. The most recent (and only) performance analysis is in the  [mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) mentioned above. *Step-by-step instructions for measuring performance (using well-known data sets) are forthcoming.*
 
-## <a name="credits">Credits</a>
+## <a name="acks">Acknowledgements</a>
 
-This endevor was made possible by:
+This endevor was made possible with the help of:
 
-* [CWI Amsterdam](http://www.cwi.nl/) - the research institute where I'm employed
+* [CWI Amsterdam](http://www.cwi.nl/)
 * Prof. [Peter Boncz](http://homepages.cwi.nl/~boncz/), co-author of the above-mentioned paper
 * The [MonetDB](http://www.monetdb.org/) DBMS project - which got me into DBMSes and GPUs in the first place, and which I (partially) use for performance testing
-
