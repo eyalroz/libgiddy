@@ -1,12 +1,11 @@
 # Giddy - A GPU lightweight decompression library
 
-Described in [this mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) in the [DaMoN 2017](http://daslab.seas.harvard.edu/damon2017/) workshop.
+(presented in [this mini-paper](https://www.researchgate.net/publication/315834231_Faster_across_the_PCIe_bus_A_GPU_library_for_lightweight_decompression) in the [DaMoN 2017](http://daslab.seas.harvard.edu/damon2017/) workshop.)
 
-* [Why lightweight compression for GPU work?](#why)
-* [What does this library comprise?](#what)
-* [Which compression schemes are supported?](#which)
-* [Examples of use](#examples)
-* [Performance](#performance)
+| Table of contents|
+|:----------------|
+|- [Why lightweight compression for GPU work?](#why)<br>- [What does this library comprise?](#what)<br>- [Which compression schemes are supported?](#which)<br>- [How to decompress data using Giddy?](#examples)<br>- [Performance](#performance)|
+
 
 For questions, requests or bug reports - either use the [Issues page](https://github.com/eyalroz/libgiddy/issues) or [email me](mailto:eyalroz@technion.ac.il).
 
@@ -24,31 +23,15 @@ Giddy enables the use of lightweight compressed data on the GPU by providing dec
 
 ## <a name="what">What does the library comprise?</a>
 
-Giddy is essentially a library of GPU kernels and logic for configuring their launch (grid dimensions, block dimensions, dynamic shared memory size). The kernels can be used in one of three ways, described below. Let's suppose we want to use compression scheme "Foo".
+Giddy comprises:
 
-1. Use of the kernel code itself. In this case you would need to take care of the launch configuration
+* **CUDA kernel source code** for decompressing data using each of the compression schemes listed [below](#which). The kernels are **templated**, and one may instantiate them for a **variety of combinations of types** and some compression scheme parameters which it would not be efficient to pass at run-time. 
+    * ... and source code for auxiliary kernels required for decompression (e.g. for the scattering of patch data).
+* A uniform **mechanism for configuring launches** of these kernels (grid dimensions, block dimensions and dynamic shared memory size). 
+* A kernel wrapper abstraction class --- which is not specific to decompression work, but rather general --- and individual **kernel wrappers** for each decompression scheme (templated similarly to the kernels themselves). Instead of dealing directly with the kernels at the lower level, making CUDA API calls yourself, you can instead use the associated wrapper.
+* The kernel wrapper class also registers itself in a **factory**, which you can use **for instantiate wrappers without having compiled against their code**. The factory provides us with instances of a common base class - and their virtual methods are used to pass scheme-specific arguments.
 
-   * include the relevant kernel file itself: `src/kernels/decompression/foo.cuh`;
-   * include `src/kernels/resolve_launch_configuration.h`;
-   * instantiate a launch configuration resultion parameters object (the class ould be `cuda::kernels::decompression::foo::launch_config_resolution_params_t`,  defined in the `foo.cuh` file);
-   * call `resolve_launch_configuration()` function with the object you instantiated;
-   * use the resulting `launch_configuration_t` for a launch - either immediately (with the [C++'ish CUDA API wrappers](https://github.com/eyalroz/cuda-api-wrappers/)), or by using its data members in a plain vanilla CUDA kernel launch statement.
-
-2. Use of kernel wrapper objects, with a class corresponding to each scheme. These wrappers are pretty thin, and do not perform any scheduling or resource allocation; they're just intended to provide a uniform interface for launching. This uniformity is achieved by type-erasure: The wrappers' launch method takes a map of [`boost::any`](http://www.boost.org/doc/libs/1_63_0/doc/html/any.html) objects. It is up to the client code to pass the appropriate parameters in that map. e-specific methods).
-
-   * Include the kernel's wrapper class definition, in `src/kernel_wrappers/decompression/foo.cu`
-   * Instantiate `cuda::kernels::decompression::foo::kernel_t`
-   * Create an std::unordered_map of the launch arguments
-   * Use the instance's `launch()` method
-
-3. Use of the kernel wrappers via a factory. Another feature of the wrapper class is being factory-producible: Each compression scheme's wrapper class registers several available template instantiations of itself in a factory, at program load time; these can then be retrieved without actually including any of the compression-scheme-specific code - which means, in particular, not including any CUDA-specific code that requires nvcc to compile.
-
-   To use the wrapper for class :
-
-   * Include [`src/kernel_wrappers/registered_wrappers.h`](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/registered_wrapper.h)
-   * Use the `cuda::registered::kernel_t` class' static methods - `listSubclasses()` and `produceSubclass()` - to instantiate specific scheme wrappers. The instantiated wrappers don't have any state; the instantiation is necessary simply for their vtables (i.e. to be able to call the compression-scheme-specific methods).
-
-**Note:** No code is currently provided for *compressing* data, on the host side or anywhere else. This is [Issue #3](https://github.com/eyalroz/libgiddy/issues/3).
+If this sounds a bit confusing, scroll down to the [examples](#examples) section.
 
 ## <a name="which">Supported compression schemes</a>
 
@@ -68,9 +51,71 @@ The following compression schemes are currently included:
 
 Additionally, two patching schemes are supported: Naive patching and Compressed-Indices patching. As these are "aposteriori" patching schemes, you apply them by simply decompressing using some base scheme, then using one of the two kernels `data_layout::scatter` or `data_layout::compressed_indices_scatter` on the initial decompression result. You will not find specific kernels, kernel wrappers or factory entries for the "combined" patched scheme, only for its components.
 
-## <a name="why">Exaples of use</a>
+## <a name="examples">How to decompress data using Giddy?</a>
 
-Example code is forthcoming. For now, you can find a rather complicated example in the form of the test harness used to develop these kernels, available in [this repository](https://bitbucket.org/eyalroz/db-kernel-testbench/) on BitBucket.
+*Note: The examples use the  [C++'ish CUDA API wrappers](https://github.com/eyalroz/cuda-api-wrappers/)), making the host-side code somewhat clearer and shorter.*
+
+Suppose we're presented with compressed data with the following characteristics, which for simplicity is already in GPU memory:
+
+| Parameter                      | Value               |
+|:-------------------------------|:--------------------|
+|Decompression scheme            | Frame of Reference  |
+|width of size/index type        | 32 bits             |
+|Uncompressed data type          | uncompressed_type   |
+|type of offsets from FOR value  | compressed_type     |
+|segment length                  | (runtime variable)  |
+|total length of compressed data | (runtime variable)  |
+
+in other words, we want to implement the following function:
+
+```
+void decompress_on_device(
+	uncompressed_type*              __restrict__  decompressed,
+	const compressed_type*          __restrict__  compressed,
+	const model_coefficients_type*  __restrict__  segment_model_coefficients,
+	index_type                                    length,
+	index_type                                    segment_length);
+```
+
+We can do this with Giddy in one of three ways.
+
+### <a name="direct-use-of-kernel">Direct use of the kernel source code</a>
+
+The example code for this mode of use is found in [`examples/src/direct_use_of_kernel.cu`](examples/src/modes_of_use/direct_use_of_kernel.cu).
+
+In this mode, we
+
+   * include the [kernel source file](https://github.com/eyalroz/libgiddy/blob/master/src/kernels/decompression/frame_of_reference.cuh); we now have a pointer to the kernel's device-side function
+   * include the launch config resolution mechanism header
+   * instantiate a launch configuration resolution parameters object, with the parameters specific to our launch
+   * call `resolve_launch_configuration()` function with the object we instantiated, obtaining a [`launch_configuration_t` struct](https://codedocs.xyz/eyalroz/cuda-api-wrappers/structcuda_1_1launch__configuration__t.html).
+   * perform a CUDA kernel launch, either using the API wrapper (which takes the device function pointer and a `launch_configuration_t`) or the plain vanilla way, extracting the fields of the `launch_configuration_t`.
+   
+### <a name="instantiation-of-wrapper">Instantiation of the specific kernel launch wrapper</a>
+
+The example code for this mode of use is found in [`examples/src/instantiation_of_wrapper.cu`](examples/src/modes_of_use/instantiation_of_wrapper.cu).
+
+Each decompression kernel has a corresponding thin wrapper class. An instance of the wrapper class has no state - no data members; we only use it for its vtable - its virtual methods, specific to the decompression scheme. Thus, in this mode of use, we:
+
+   * include the kernel's wrapper class [definition](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/decompression/frame_of_reference.cu)
+   * instantiate the wrapper class `cuda::kernels::decompression::frame_of_reference::kernel_t`
+   * call the wrapper's  `resolve_launch_configuration()` method with the appropriate parameters, obtaining a `launch_configuration_t` structure.
+   * call the freestanding function `cuda::kernel::enqueue_launch()` with our wrapper instance, the launch configuration, and the arguments we need to pass the kernel
+   
+### <a name="factory-provided-type-erased-wrapper">Use of factory-provided, type-erased wrapper</a>
+
+The example code for this mode of use is found in [`examples/src/factory_provided_type_erased_wrapper.cu`](examples/src/modes_of_use/factory_provided_type_erased_wrapper.cu).
+
+The kernel wrappers are intended to allow a uniform interface for launching kernels. This uniformity is achieved by type-erasure: The wrappers' base class virtual methods wrappers' all take a map of [`boost::any`](http://www.boost.org/doc/libs/1_63_0/doc/html/any.html) objects; and it is up to the caller to pass the appropriate parameters in that map. Thus, in this mode, we:
+
+   * Include just the common base class header for the kernel wrappers ([`src/kernel_wrappers/registered_wrappers.h`](https://github.com/eyalroz/libgiddy/blob/master/src/kernel_wrappers/registered_wrapper.h))
+   * Use the `cuda::registered::kernel_t` class' static method `produceSubclass()` - to instantiate specific the wrapper relevant to our scenario (named `"decompression::frame_of_reference::kernel_t<4u, int, short, cuda::functors::unary::parametric_model::constant<4u, int> >"`). What we actually hold is an `std::unique_ptr()` to such an instance.   
+   * Prepare a type-erased map of parameters, and pass it to the `resolve_launch_configuration()` method of our isntance, obtaining a `launch_configuration_t` structure.
+   * Prepare a second type-erased map of parameters, and pass it to the `enqueue_launch()` method of our isntance, along with the launch configuration structure we've just obtained.
+
+### No facility for compression!
+
+No code is currently provided for *compressing* data - neither on the device nor on the host side. This is [Issue #3](https://github.com/eyalroz/libgiddy/issues/3).
 
 ## <a name="performance">Performance</a>
 
@@ -81,7 +126,6 @@ Some of the decompressors are well-optimized, some need more work. The most rece
 This endevor was made possible by:
 
 * [CWI Amsterdam](http://www.cwi.nl/) - the research institute where I'm employed
-* [Prof. Peter Boncz](http://homepages.cwi.nl/~boncz/), co-author of the above-mentioned paper
+* Prof. [Peter Boncz](http://homepages.cwi.nl/~boncz/), co-author of the above-mentioned paper
 * The [MonetDB](http://www.monetdb.org/) DBMS project - which got me into DBMSes and GPUs in the first place, and which I (partially) use for performance testing
 
-... do check all of these out.
