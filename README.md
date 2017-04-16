@@ -39,17 +39,23 @@ The following compression schemes are currently included:
 
 * Delta
 * Dictionary
-* DiscardZeroBytesFixed
-* DiscardZeroBytesVariable
-* FrameOfReference
-* IncidenceBitmaps
+* Null Suppression (Discard Zero-Bytes):
+   * Fixed width
+   * Variable width
+* (Generalized) Frame of Reference
+* Incidence Bitmaps
 * Model
-* RunLengthEncoding
-* RunPositionEncoding
+* Run Length Encoding
+* Run Position Encoding
 
 *(A specification of each of these, its semantics and exact parameters is forthcoming; for now, please consult the sources themselves.)*
 
-Additionally, two patching schemes are supported: Naive patching and Compressed-Indices patching. As these are "aposteriori" patching schemes, you apply them by simply decompressing using some base scheme, then using one of the two kernels `data_layout::scatter` or `data_layout::compressed_indices_scatter` on the initial decompression result. You will not find specific kernels, kernel wrappers or factory entries for the "combined" patched scheme, only for its components.
+Additionally, two patching schemes are supported: 
+
+* Naive patching 
+* Compressed-Indices patching
+
+As these are "aposteriori" patching schemes, you apply them by simply decompressing using some base scheme, then using one of the two kernels `data_layout::scatter` or `data_layout::compressed_indices_scatter` on the initial decompression result. You will not find specific kernels, kernel wrappers or factory entries for the "combined" patched scheme, only for its components.
 
 ## <a name="examples">How to decompress data using Giddy?</a>
 
