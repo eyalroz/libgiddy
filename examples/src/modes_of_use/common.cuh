@@ -12,9 +12,9 @@ constexpr inline T div_rounding_up(const T& dividend, const T& divisor) {
 	return (dividend + divisor - 1) / divisor;
 }
 
-using index_type        = unsigned;
-using uncompressed_type = int;
-using compressed_type   = short;
+using index_type        = uint32_t;
+using uncompressed_type = int32_t;
+using compressed_type   = int16_t;
 using model_type = cuda::functors::unary::parametric_model::constant<sizeof(index_type), uncompressed_type>;
 using model_coefficients_type = typename model_type::coefficients_type;
 
