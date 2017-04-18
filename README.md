@@ -67,14 +67,18 @@ Suppose we're presented with compressed data with the following characteristics,
 |:-------------------------------|:--------------------|
 |Decompression scheme            | Frame of Reference  |
 |width of size/index type        | 32 bits             |
-|Uncompressed data type          | uncompressed_type   |
-|type of offsets from FOR value  | compressed_type     |
+|Uncompressed data type          | int32_t             |
+|type of offsets from FOR value  | int16_t             |
 |segment length                  | (runtime variable)  |
 |total length of compressed data | (runtime variable)  |
 
 in other words, we want to implement the following function:
 
 ```
+using index_type        = uint32_t;
+using uncompressed_type = int32_t;
+using compressed_type   = int16_t;
+
 void decompress_on_device(
 	uncompressed_type*              __restrict__  decompressed,
 	const compressed_type*          __restrict__  compressed,
