@@ -2,6 +2,7 @@
 #ifndef SRC_CUDA_ON_DEVICE_PTX_CUH_
 #define SRC_CUDA_ON_DEVICE_PTX_CUH_
 
+#include <cstdint>     // for uintXX_t types
 #include <type_traits> // for std::is_unsigned
 
 #ifndef STRINGIFY
@@ -23,6 +24,9 @@ namespace ptx {
 # define PTR_CONSTRAINT "r"
 #endif
 
+/**
+ * See @link http://docs.nvidia.com/cuda/parallel-thread-execution/index.html#special-registers
+ */
 namespace special_registers {
 
 
@@ -31,28 +35,28 @@ __forceinline__ __device__ value_type special_register_name () \
 { \
 	value_type ret;  \
 	if (std::is_unsigned<value_type>::value) { \
-		asm volatile ("mov.u" STRINGIFY(width_in_bits) " %0, %" STRINGIFY(special_register_name) ";" : "=r"(ret)); \
+		asm ("mov.u" STRINGIFY(width_in_bits) " %0, %" STRINGIFY(special_register_name) ";" : "=r"(ret)); \
 	} \
 	else { \
-		asm volatile ("mov.s" STRINGIFY(width_in_bits) " %0, %" STRINGIFY(special_register_name) ";" : "=r"(ret)); \
+		asm ("mov.s" STRINGIFY(width_in_bits) " %0, %" STRINGIFY(special_register_name) ";" : "=r"(ret)); \
 	} \
 	return ret; \
 } \
 
-DEFINE_SPECIAL_REGISTER_GETTER( laneid,             unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( warpid,             unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( gridid,             unsigned long long, 64);
-DEFINE_SPECIAL_REGISTER_GETTER( smid,               unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( nsmid,              unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( clock,              unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( clock64,            unsigned long long, 64);
-DEFINE_SPECIAL_REGISTER_GETTER( lanemask_lt,        unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( lanemask_le,        unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( lanemask_eq,        unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( lanemask_ge,        unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( lanemask_gt,        unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( dynamic_smem_size,  unsigned,           32);
-DEFINE_SPECIAL_REGISTER_GETTER( total_smem_size,    unsigned,           32);
+DEFINE_SPECIAL_REGISTER_GETTER( laneid,             uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( warpid,             uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( gridid,             uint64_t,          64);
+DEFINE_SPECIAL_REGISTER_GETTER( smid,               uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( nsmid,              uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( clock,              uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( clock64,            uint64_t,          64);
+DEFINE_SPECIAL_REGISTER_GETTER( lanemask_lt,        uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( lanemask_le,        uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( lanemask_eq,        uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( lanemask_ge,        uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( lanemask_gt,        uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( dynamic_smem_size,  uint32_t,          32);
+DEFINE_SPECIAL_REGISTER_GETTER( total_smem_size,    uint32_t,          32);
 
 #undef DEFINE_SPECIAL_REGISTER_GETTER
 
@@ -83,9 +87,10 @@ __forceinline__ __device__ T ldg(const T* ptr)
 	return *ptr; // maybe we should ld.cg or ld.cs here?
 #endif
 }
-template <typename T>
-__forceinline__ __device__ T load_global_with_non_coherent_cache(const T* ptr) { return ldg(ptr); }
 
+/**
+ * See @link http://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-isspacep
+ */
 #define DEFINE_IS_IN_MEMORY_SPACE(_which_space) \
 __forceinline__ __device__ int is_in_ ## _which_space ## _memory (const void *ptr) \
 { \
@@ -107,6 +112,34 @@ DEFINE_IS_IN_MEMORY_SPACE(shared)
 #undef DEFINE_IS_IN_MEMORY_SPACE
 
 #undef PTR_CONSTRAINT
+
+/**
+ * @brief Find the last non-sign bit in a signed or an unsigned integer value
+ *
+ * @note See @link http://docs.nvidia.com/cuda/parallel-thread-execution/index.html#integer-arithmetic-instructions-bfind
+ *
+ * @param val the value in which to find non-sign bits
+ * @return the bit index (counting from least significant bit being 0) of the first
+ * bit which is 0 if @p val is positive, or of the first bit which is 1 if @p val is negative. If @p val has only
+ * sign bits (i.e. if it's 0 or if its type is signed and its bits are all 1) - the value 0xFFFFFFFF (-1) is returned
+ */
+#define DEFINE_BFIND(value_type, width_in_bits) \
+__forceinline__ __device__ uint32_t bfind(value_type val) \
+{ \
+	value_type ret;  \
+	if (std::is_unsigned<value_type>::value) { \
+		asm ("bfind.u" STRINGIFY(width_in_bits) " %0, %1;" : "=r"(ret): "r"(val)); \
+	} \
+	else { \
+		asm ("bfind.s" STRINGIFY(width_in_bits) " %0, %1;" : "=r"(ret): "r"(val)); \
+	} \
+	return ret; \
+}
+
+DEFINE_BFIND(int32_t,  32);
+DEFINE_BFIND(int64_t,  64);
+DEFINE_BFIND(uint32_t, 32);
+DEFINE_BFIND(uint64_t, 64);
 
 } // namespace ptx
 

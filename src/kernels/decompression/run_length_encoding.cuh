@@ -23,19 +23,20 @@ namespace detail {
 // to perform decompression, which does not
 // involve any significant computation and can
 // be allowed to be computed redundantly by all threads
-template<unsigned IndexSize, unsigned RunLengthSize>
+//
+// Note: We could theoretically use smaller
+// types for some of the fields here; particularly,
+// the number of runs intersecting a segment is
+// no more than the segment size, which may
+// be assumed not to need to be extended from, say,
+// 2 to 4 bytes. Still, we'll keep it simple and 32-bit'y.
+template<unsigned UncompressedIndexSize, unsigned RunLengthSize, unsigned RunIndexSize>
 struct segment_decompression_params_t {
-	uint_t<IndexSize>           first_run_index; // of the runs intersecting the segment
-	uint_t<RunLengthSize>       effective_length_of_first_run;
-	uint_t<IndexSize>           num_runs;  // intersecting the segment; we know it fits in this type!
-	uint_t<IndexSize>           uncompressed_start_position;
-	uint_t<IndexSize>           decompressed_length;
-		// Even though position_offset_type is the type of the offset,
-		// meaning that, supposedly, the length could be
-		// the unrepresentable 2^(CHAR_BIT * sizeof(position_offset_type),
-		// this can't actually happen since the anchoring period
-		// is also of type position_offset_type. In fact, this is
-		// almost always equal to the anchoring period
+	uint_t<RunIndexSize>                            first_run_index; // the first run intersecting the segment
+	uint_t<RunLengthSize>                           effective_length_of_first_run;
+	size_type_by_index_size<RunIndexSize>           num_runs;
+	size_type_by_index_size<UncompressedIndexSize>  uncompressed_start_position;
+	size_type_by_index_size<UncompressedIndexSize>  decompressed_length;
 };
 
 using namespace grid_info::linear;
@@ -46,26 +47,25 @@ namespace block {
  * @note this assumes the beginning of the block output is well-aligned; if it isn't,
  *  the function will work but performance will be sub-optimal.
  */
-template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
+template<unsigned UncompressedIndexSize, unsigned UncompressedSize, unsigned RunLengthSize, unsigned RunIndexSize>
 __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 	uint_t<UncompressedSize>*        __restrict__  decompressed_segment,
 	const uint_t<RunLengthSize>*     __restrict__  run_lengths, // for this segment only
 	const uint_t<UncompressedSize>*  __restrict__  run_data,    // for this segment only
-	const segment_decompression_params_t<IndexSize, RunLengthSize>&
+	const segment_decompression_params_t<UncompressedIndexSize, RunLengthSize,  RunIndexSize>&
 	                                               params)
 {
 	using uncompressed_type = uint_t<UncompressedSize>;
+	using uncompressed_index_size_type = size_type_by_index_size<UncompressedIndexSize>;
 	using run_length_type   = uint_t<RunLengthSize>;
-	using index_type        = uint_t<IndexSize>;
-	enum {
-		elements_per_thread_write = UncompressedSize >= sizeof(unsigned) ?
-			1 : sizeof(unsigned) / UncompressedSize
-	};
+	using index_type        = uint_t<UncompressedIndexSize>;
+	using run_index_type    = uint_t<RunIndexSize>;
+
+
+	constexpr const native_word_t elements_per_thread_write =
+		UncompressedSize >= sizeof(native_word_t) ? 1 : sizeof(native_word_t) / UncompressedSize;
 
 	if (params.num_runs == 1) {
-//		if (grid_info::linear::block::is_last_in_grid()) {
-//			block_print("Uniform-value block, filling it.");
-//		}
 		auto uniform_segment_value = run_data[0];
 		primitives::block::fill_n(
 			decompressed_segment,
@@ -74,16 +74,17 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 	}
 
 	struct {
-		index_type       index;  // ... among the runs for this segment
-		index_type       start;  // ... within the entire decompressed output (
-		run_length_type  length; // in elements of uncompressed_type
+		run_index_type                index;  // ... among the runs for this segment
+		uncompressed_index_size_type  start;  // ... within the entire decompressed output (
+		run_length_type               length; // in elements of type uncompressed_type
 
-
-		__device__ index_type end() const {
+		__device__ uncompressed_index_size_type end() const
+		{
 			return start + length;
 		}
 
-		__device__ void advance(const run_length_type* run_lengths) {
+		__device__ void advance(const run_length_type* run_lengths)
+		{
 			index++;
 			start += length;
 			length = run_lengths[index];
@@ -135,11 +136,11 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 
 		array<uint_t<UncompressedSize>, elements_per_thread_write> thread_write_buffer;
 			// Notes:
-			// * The total size of this variable is a multiple of sizeof(unsigned)
+			// * The total size of this variable is a multiple of sizeof(native_word_t)
 			// * This should be optimized into registers
 
 		#pragma unroll
-		for(unsigned element_within_thread_write = 0;
+		for(native_word_t element_within_thread_write = 0;
 		    element_within_thread_write < elements_per_thread_write;
 		    element_within_thread_write++)
 		{
@@ -214,7 +215,7 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 
 		auto num_actually_decompressed = truncated_decompressed_length;
 		auto num_slack_elements = params.decompressed_length - num_actually_decompressed;
-		
+
 		if (num_slack_elements == 0) { return; }
 
 		if (truncated_decompressed_length == 0) {
@@ -244,7 +245,7 @@ __forceinline__ __device__ void decompress_a_segment_with_few_runs(
 	}
 }
 
-template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
+template<unsigned UncompressedIndexSize, unsigned UncompressedSize, unsigned RunLengthSize, unsigned RunIndexSize>
 __forceinline__ __device__ void decompress_segment(
 	uint_t<UncompressedSize>*        __restrict__   decompressed,
 	// this may be a pointer to the absolute beginning of the input data,
@@ -252,7 +253,7 @@ __forceinline__ __device__ void decompress_segment(
 	// or not.
 	const uint_t<RunLengthSize>*     __restrict__   run_lengths, // for this segment only
 	const uint_t<UncompressedSize>*  __restrict__   run_data,    // for this segment only
-	const segment_decompression_params_t<IndexSize, RunLengthSize>&
+	const segment_decompression_params_t<UncompressedIndexSize, RunLengthSize,  RunIndexSize>&
 	                                                params)
 {
 
@@ -260,27 +261,27 @@ __forceinline__ __device__ void decompress_segment(
 	// run length. (Doing that may require additional segment decompression
 	// parameters to be computed.)
 
-	decompress_a_segment_with_few_runs<IndexSize, UncompressedSize, RunLengthSize>(
+	decompress_a_segment_with_few_runs<UncompressedIndexSize, UncompressedSize, RunLengthSize, RunIndexSize>(
 		decompressed, run_lengths, run_data, params);
 }
 
 
 // TODO: perhaps convert this into a named constructor idiom for
 // segment_decompression_params_t ?
-template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
-__forceinline__ __device__ segment_decompression_params_t<IndexSize, RunLengthSize>
+template<unsigned UncompressedIndexSize, unsigned UncompressedSize, unsigned RunLengthSize, unsigned RunIndexSize>
+__forceinline__ __device__ segment_decompression_params_t<UncompressedIndexSize, RunLengthSize,  RunIndexSize>
 resolve_segment_decompression_params(
 	const uint_t<RunLengthSize>*  __restrict__  run_lengths,
-	const uint_t<IndexSize>*      __restrict__  position_anchors,
-	const uint_t<RunLengthSize>*  __restrict__  position_anchor_intra_run_offsets,
-	uint_t<IndexSize>                           anchoring_period,
-	uint_t<IndexSize>                           num_anchors,
-	uint_t<IndexSize>                           num_element_runs,
-	uint_t<IndexSize>                           total_uncompressed_length)
+	const uint_t<UncompressedIndexSize>*      __restrict__  segment_position_anchors,
+	const uint_t<RunLengthSize>*  __restrict__  segment_position_anchor_intra_run_offsets,
+	size_type_by_index_size<UncompressedIndexSize>          segment_length,
+	size_type_by_index_size<UncompressedIndexSize>          num_segments,
+	size_type_by_index_size<UncompressedIndexSize>          num_element_runs,
+	size_type_by_index_size<UncompressedIndexSize>          total_uncompressed_length)
 {
 	using run_length_type = uint_t<RunLengthSize>;
 
-	segment_decompression_params_t<IndexSize, RunLengthSize> params;
+	segment_decompression_params_t<UncompressedIndexSize, RunLengthSize,  RunIndexSize> params;
 	// Each block is responsible for a certain number of output elements, not of
 	// input elements (the latter option runs too much of a risk of block
 	// workload imbalance). The block's output elements range from one
@@ -288,37 +289,37 @@ resolve_segment_decompression_params(
 
 	auto anchor_index = grid_info::linear::block::index();
 	auto next_anchor_index  = grid_info::linear::block::index() + 1;
-	params.uncompressed_start_position = anchor_index * anchoring_period;
+	params.uncompressed_start_position = anchor_index * segment_length;
 
-	auto is_last_segment = (next_anchor_index == num_anchors);
+	auto is_last_segment = (next_anchor_index == num_segments);
 	params.decompressed_length = is_last_segment ?
 		total_uncompressed_length - params.uncompressed_start_position :
-		anchoring_period;
+		segment_length;
 
-	params.first_run_index = position_anchors[anchor_index];
+	params.first_run_index = segment_position_anchors[anchor_index];
 
 	// For the following code recall we assume the offsets into the runs
 	// are less than the entire run lengths
 
 	params.effective_length_of_first_run =
 		run_lengths[params.first_run_index] -
-		position_anchor_intra_run_offsets[anchor_index];
+		segment_position_anchor_intra_run_offsets[anchor_index];
 	if (is_last_segment) {
 		params.num_runs = num_element_runs - params.first_run_index;
 		params.effective_length_of_first_run =
 			(params.num_runs == 1) ?
 				total_uncompressed_length - params.uncompressed_start_position :
 				run_lengths[params.first_run_index] -
-				position_anchor_intra_run_offsets[anchor_index];
+				segment_position_anchor_intra_run_offsets[anchor_index];
 	}
 	else {
-		auto run_index_at_next_anchor = position_anchors[next_anchor_index];
+		auto run_index_at_next_anchor = segment_position_anchors[next_anchor_index];
 		params.num_runs =  run_index_at_next_anchor - params.first_run_index + 1;
 		params.effective_length_of_first_run =
 			(params.num_runs == 1) ?
-				anchoring_period :
+				segment_length :
 				run_lengths[params.first_run_index] -
-				position_anchor_intra_run_offsets[anchor_index];
+				segment_position_anchor_intra_run_offsets[anchor_index];
 	}
 
 	return params;
@@ -337,37 +338,35 @@ resolve_segment_decompression_params(
  * @note (constraints on the anchoring period?)
  *
  * @note we assume all input arrays are well-aligned.
- *
  */
-template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
+template<unsigned UncompressedIndexSize, unsigned UncompressedSize, unsigned RunLengthSize, unsigned RunIndexSize = UncompressedIndexSize>
 __global__ void decompress(
-	uint_t<UncompressedSize>*        __restrict__  decompressed,
-	const uint_t<UncompressedSize>*  __restrict__  run_data,
-	const uint_t<RunLengthSize>*     __restrict__  run_lengths,
-	const uint_t<IndexSize>*         __restrict__  position_anchors,
-	const uint_t<RunLengthSize>*     __restrict__  position_anchor_intra_run_offsets,
-	uint_t<IndexSize>                              anchoring_period,
-	uint_t<IndexSize>                              num_anchors,
-	uint_t<IndexSize>                              num_element_runs, // = length of the run_* arrays
-	uint_t<IndexSize>                              uncompressed_length)
+	uint_t<UncompressedSize>*             __restrict__  decompressed,
+	const uint_t<UncompressedSize>*       __restrict__  run_data,
+	const uint_t<RunLengthSize>*          __restrict__  run_lengths,
+	const uint_t<UncompressedIndexSize>*  __restrict__  segment_position_anchors,
+	const uint_t<RunLengthSize>*          __restrict__  segment_position_anchor_intra_run_offsets,
+	size_type_by_index_size<UncompressedIndexSize>      segment_length,
+	size_type_by_index_size<UncompressedIndexSize>      num_segments,
+	size_type_by_index_size<RunIndexSize>               num_element_runs,
+	size_type_by_index_size<UncompressedIndexSize>      total_uncompressed_length)
 {
 	using uncompressed_type    = uint_t<UncompressedSize>;
 
-	static_assert(is_power_of_2(IndexSize), "IndexSize is not a power of 2");
-	static_assert(IndexSize == 1 or IndexSize == 2 or IndexSize == 4 or IndexSize == 8,
-		"unsupported IndexSize");
-	static_assert(RunLengthSize == 1 or RunLengthSize == 2 or RunLengthSize == 4 or RunLengthSize == 8,
-		"unsupported RunLengthSize");
+	static_assert(is_power_of_2(UncompressedIndexSize), "UncompressedIndexSize is not a power of 2");
+	static_assert(is_power_of_2(RunIndexSize         ), "RunIndexSize is not a power of 2");
+	static_assert(is_power_of_2(RunLengthSize        ), "RunLengthSize is not a power of 2");
 
 	// TODO: For large anchoring periods, consider breaking up segments into consecutive pieces,
 	// with several warps handling each of them.
 
 	auto block_params = detail::block::resolve_segment_decompression_params
-		<IndexSize, UncompressedSize, RunLengthSize>(
-		run_lengths, position_anchors, position_anchor_intra_run_offsets, anchoring_period,
-		num_anchors, num_element_runs, uncompressed_length);
+		<UncompressedIndexSize, UncompressedSize, RunLengthSize, RunIndexSize>(
+		run_lengths, segment_position_anchors,
+		segment_position_anchor_intra_run_offsets, segment_length,
+		num_segments, num_element_runs, total_uncompressed_length);
 
-	detail::block::decompress_segment<IndexSize, UncompressedSize, RunLengthSize>(
+	detail::block::decompress_segment<UncompressedIndexSize, UncompressedSize, RunLengthSize, RunIndexSize>(
 		decompressed + block_params.uncompressed_start_position,
 		run_lengths  + block_params.first_run_index,
 		run_data     + block_params.first_run_index,
@@ -375,28 +374,32 @@ __global__ void decompress(
 }
 
 
-template<unsigned IndexSize, unsigned UncompressedSize, unsigned RunLengthSize>
+template<unsigned UncompressedIndexSize, unsigned UncompressedSize, unsigned RunLengthSize, unsigned RunIndexSize = UncompressedIndexSize>
 class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
 public:
 	using parent = kernels::launch_config_resolution_params_t;
 public:
+	static_assert(util::is_power_of_2(UncompressedIndexSize), "UncompressedIndexSize is not a power of 2");
+	static_assert(util::is_power_of_2(RunIndexSize         ), "RunIndexSize is not a power of 2");
+	static_assert(util::is_power_of_2(RunLengthSize        ), "RunLengthSize is not a power of 2");
+
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          uncompressed_length,
-		size_t                          position_anchoring_period,
+		size_t                          segment_length,
 		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
 		parent(
 			device_properties_,
-			device_function_t(decompress<IndexSize, UncompressedSize, RunLengthSize>),
+			device_function_t(decompress<UncompressedIndexSize, UncompressedSize, RunLengthSize, RunIndexSize>),
 			dynamic_shared_mem_limit
 		)
 	{
 		enum { elements_per_thread_write =
-			UncompressedSize >= sizeof(unsigned) ? 1 : sizeof(unsigned) / UncompressedSize };
+			UncompressedSize >= sizeof(native_word_t) ? 1 : sizeof(native_word_t) / UncompressedSize };
 
 		auto num_anchored_segments =
-			util::div_rounding_up(uncompressed_length, position_anchoring_period);
-		auto num_thread_writes_per_segment = div_rounding_up(position_anchoring_period, elements_per_thread_write);
+			util::div_rounding_up(uncompressed_length, segment_length);
+		auto num_thread_writes_per_segment = div_rounding_up(segment_length, elements_per_thread_write);
 
 		grid_construction_resolution  = block;
 		length                        = num_anchored_segments;

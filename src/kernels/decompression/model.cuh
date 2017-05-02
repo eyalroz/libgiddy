@@ -37,15 +37,13 @@ using namespace grid_info::linear;
 
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
 __global__ void decompress(
-	Uncompressed* __restrict__   decompressed,
-	typename UnaryModelFunction::coefficients_type
-	                             model_coefficients,
-	uint_t<IndexSize>            length)
+	Uncompressed* __restrict__                      decompressed,
+	typename UnaryModelFunction::coefficients_type  model_coefficients,
+	size_type_by_index_size<IndexSize>              length)
 {
-	using index_type = uint_t<IndexSize>;
 	constexpr const serialization_factor_t serialization_factor = warp_size / sizeof(Uncompressed);
 	UnaryModelFunction model(model_coefficients);
-	auto f = [&decompressed, &length, &model](index_type pos) {
+	auto f = [&decompressed, &length, &model](decltype(length) pos) {
 		// Note: The model might not predict a value of type Uncompressed; for example,
 		// it may be a fractional value for predicting an integral value, due to, say
 		// a best-line-fit over the data
@@ -56,24 +54,24 @@ __global__ void decompress(
 
 template<unsigned IndexSize, typename Uncompressed, typename UnaryModelFunction>
 __global__ void decompress_with_intervals(
-	Uncompressed* __restrict__   decompressed,
+	Uncompressed* __restrict__          decompressed,
 	const typename UnaryModelFunction::coefficients_type* __restrict__
-	                             interval_model_coefficients,
-	uint_t<IndexSize>            modeling_period,
-	uint_t<IndexSize>            intervals_per_block,
-	uint_t<IndexSize>            length)
+	                                    interval_model_coefficients,
+	size_type_by_index_size<IndexSize>  modeling_period,
+	size_type_by_index_size<IndexSize>  intervals_per_block,
+	size_type_by_index_size<IndexSize>  length)
 {
 	using namespace grid_info::linear;
-	using index_type = uint_t<IndexSize>;
+	using size_type = size_type_by_index_size<IndexSize>;
 
-	index_type starting_interval_index_for_block = intervals_per_block * block::index();
-	index_type interval_start_pos = starting_interval_index_for_block * modeling_period;
+	auto starting_interval_index_for_block = intervals_per_block * block::index();
+	size_type interval_start_pos = starting_interval_index_for_block * modeling_period;
 
 	if (intervals_per_block > 1) {
 		// we only assign multiple periods to a block if one iteration per thread
 		// is enough to cover everything
 
-		auto position = interval_start_pos + thread::index();
+		auto position = (size_type) interval_start_pos + thread::index();
 		if (position >= length) { return; }
 		auto inter_block_interval_index = thread::index() / modeling_period;
 		auto interval_index = starting_interval_index_for_block + inter_block_interval_index;
@@ -85,12 +83,12 @@ __global__ void decompress_with_intervals(
 		// Note: The model might not predict a value of type Uncompressed; for example,
 		// it may be a fractional value for predicting an integral value, due to, say
 		// a best-line-fit over the data
-		decompressed[position] =static_cast<Uncompressed>(period_model(position_within_interval));
+		decompressed[position] = static_cast<Uncompressed>(period_model(position_within_interval));
 	}
 	else {
 		// We cover one interval, of length modeling_period
 		UnaryModelFunction period_model(interval_model_coefficients[block::index()]);
-		auto f = [&](index_type position_within_interval) {
+		auto f = [&](decltype(modeling_period) position_within_interval) {
 			auto global_position = interval_start_pos + position_within_interval;
 			decompressed[global_position] =
 				static_cast<Uncompressed>(period_model(position_within_interval));

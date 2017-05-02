@@ -239,7 +239,7 @@ __fd__ typename std::result_of<Function()>::type have_last_lane_compute(Function
  * @param predicate the predicate value for each thread (true if non-zero)
  * @return the number of threads in the warp whose {@ref predicate} is true (non-zero)
  */
-__fd__ unsigned vote_and_tally(int predicate)
+__fd__ native_word_t vote_and_tally(int predicate)
 {
 	return builtins::population_count(builtins::warp_ballot(predicate));
 }
@@ -255,7 +255,7 @@ __fd__ unsigned vote_and_tally(int predicate)
  * @return index of the first lane in the warp for which predicate is non-zero,
  * or warp_size in case no lanes in the warp satisfy the predicate
  */
-__fd__ unsigned first_lane_satisfying(int predicate)
+__fd__ native_word_t first_lane_satisfying(int predicate)
 {
 	return count_trailing_zeros(builtins::warp_ballot(predicate));
 }
@@ -493,6 +493,10 @@ forceinline __device__ void elementwise_accumulate(
  * input position, advancing by 'grid stride' in the sense of total
  * warps in the grid.
  *
+ * TODO: This is not general enough to be in this file; or rather, it's
+ * not clear why each thread doesn't get its own element in the range. Either
+ * it goes into some separate namespace or out of this file completely.
+ *
  * @param length The length of the range of positions on which to act
  * @param f The callable for warps to use each position in the sequence
  */
@@ -510,6 +514,7 @@ __fd__ void at_grid_stride(Size length, const Function& f)
 		f(pos);
 	}
 }
+
 
 template <typename T>
 __fd__ T* get_warp_specific_shared_memory(unsigned elements_allocated_per_warp)
@@ -715,6 +720,167 @@ __fd__ search_result_t<T> multisearch(const T& lane_needle, const T& lane_hay_st
 	return result;
 }
 
+
+template <typename Function, typename Size = unsigned>
+__fd__ void at_warp_stride(Size length, const Function& f)
+{
+	using namespace ::grid_info;
+
+	for(// _not_ the global thread index! - one element per warp
+		promoted_size<Size> pos = lane::index();
+		pos < length;
+		pos += warp_size)
+	{
+		f(pos);
+	}
+}
+
+namespace detail {
+
+/**
+ * Sometimes you have a run-time-determined range of indices
+ * for which you need to compute some predicate, but you have
+ * it constrained to be a nice round value, say a multiple of
+ * warp_size * warp_size - or even a constant multiple, but by
+ * means of, say, a configuration file. Now, the compiler will
+ * not be able to figure out this is the case, and will compile
+ * in the condition checks and the code for handling slack -
+ * which you don't actually need. To prevent that and cater
+ * to my OCD, you can use a template parameter to indicate how
+ * nicely-behaving your input length is.
+ */
+enum predicate_computation_length_slack_t {
+	has_no_slack,                //!< Length known to be multiple of warp_size * warp_size
+	may_have_full_warps_of_slack,//!< Length only known to be multiple of warp_size
+	may_have_arbitrary_slack     //!< Length may have any value, make no assumptions about it
+};
+
+} // namespace detail
+
+/**
+ * @brief Arrange the computation of a predicate by a warp so that
+ * both reads and writes are coalesced and divergence is minimized
+ *
+ * This relies on the fact that there are as many threads in a warp as
+ * there are bits in the native register size (a 4-byte unsigned int
+ * has 32 bits, and warp size is 32). This means that the whole warp
+ * computing the predicate once (i.e. for 32 elements), the results in
+ * bits exactly suffice for a single write of a 4-byte value by a
+ * single thread. Since we want coalesced writes, of 128 bytes at a
+ * time, we need that many results for each of the lanes in a warp,
+ * i.e. we need to have 32 times all-warp computations of the
+ * predicate, with every consecutive 32 providing the write value
+ * to one of the lanes. That's how this function arranges the
+ * computation.
+ *
+ * @note The predicate is passed no input data other than the index
+ * within the range 0..@p length - 1; if you need such input,
+ * pass a closure (e.g. a lambda which captures the relevant data).
+ *
+ * @note the last bits of the last bit container - those beyond
+ * @param length bits overall - are slack bits; it is assumed
+ * we're allowed to write anything to them.
+ *
+ * @param computer_predicate the result of the computation of the
+ * predicate for each of the indices in the range
+ * @param length The number of elements for which to compute the
+ * predicate, which is also the number of bits (not the size in
+ * bytes) of @p computed_predicate
+ * @param predicate
+ */
+template <
+	typename  Predicate,
+	typename  Size  = native_word_t,
+	detail::predicate_computation_length_slack_t PossibilityOfSlack = detail::may_have_arbitrary_slack
+		// set Index to something smaller than Size if you have a size that's
+		// something like 1 << sizeof(uint32_t), and then you have to use uint64_t as Size
+> __fd__ void compute_predicate_at_warp_stride(
+	unsigned*         computed_predicate,
+	Predicate&        predicate,
+	Size              length)
+{
+	static_assert(warp_size == size_in_bits<standard_bit_container_t>::value,
+		"The assumption of having as many threads in a warp "
+		"as there are bits in the native register size - "
+		"doesn't hold; you cant use this function.");
+
+	// The are three ways of proceeding with the computations, by decreasing preference:
+	//
+	// 1. Full-warp coalesced reads, full-warp coalesced writes (in units of warp_size^2)
+	// 2. Full-warp coalesced reads, non-coalesced writes (in units of warp_size)
+	// 3. Non-coalesced reads, non-coalesced writes (in units of 1)
+	//
+	// Using compile-time logic we'll try to completely avoid any consideration of
+	// cases 2 and 3 when they're not absolutely necessary; otherwise, we'll do most of
+	// the work in case 1
+
+	promoted_size<Size> full_warp_reads_output_length = length >> log_warp_size;
+	auto full_warp_writes_output_length = (PossibilityOfSlack == detail::has_no_slack) ?
+		full_warp_reads_output_length :
+		round_down_to_warp_size(full_warp_reads_output_length);
+
+	promoted_size<Size> input_pos = lane::index();
+	promoted_size<Size> output_pos = lane::index();
+
+	// This is the lick-your-fingers-mmmm-good part :-)
+
+	for (output_pos = lane::index();
+	     output_pos < full_warp_writes_output_length;
+	     output_pos += warp_size)
+	{
+		native_word_t warp_results_write_buffer;
+		#pragma unroll
+		for(native_word_t writing_lane = 0;
+		    writing_lane < warp_size;
+		    writing_lane++, input_pos += warp_size)
+		{
+			auto thread_result = predicate(input_pos);
+			auto warp_results = builtins::warp_ballot(thread_result);
+			if (lane::index() == writing_lane) { warp_results_write_buffer = warp_results; }
+		}
+		computed_predicate[output_pos] = warp_results_write_buffer;
+	}
+
+	// ... and all the rest is ugly but necessary
+
+	if (PossibilityOfSlack != detail::has_no_slack) {
+		// In this case, the output length is not known to be a multiple
+		// of 1024 = 32 * 32 = warp_size * warp_size
+		//
+		// Note that we're continuing to advance our input and output
+		// position variables
+
+		promoted_size<Size> full_warp_reads_output_slack_length =
+			full_warp_reads_output_length - full_warp_writes_output_length;
+		standard_bit_container_t warp_results_write_buffer;
+		if (full_warp_reads_output_slack_length > 0) {
+			for (native_word_t writing_lane = 0;
+				 writing_lane < full_warp_reads_output_slack_length;
+				 writing_lane++, input_pos += warp_size)
+			{
+				auto thread_result = predicate(input_pos);
+				auto warp_results = builtins::warp_ballot(thread_result);
+				if (lane::index() == writing_lane) {
+					warp_results_write_buffer = warp_results;
+				}
+			}
+		}
+		native_word_t num_writing_lanes = full_warp_reads_output_slack_length;
+		if (PossibilityOfSlack == detail::may_have_arbitrary_slack) {
+			native_word_t input_slack_length = length % warp_size; // let's hope this gets optimized...
+			if (input_slack_length > 0) {
+				auto thread_result = (input_pos < length) ? predicate(input_pos) : false;
+				auto warp_results = builtins::warp_ballot(thread_result);
+				if (lane::index() == num_writing_lanes) { warp_results_write_buffer = warp_results; }
+				num_writing_lanes++;
+			}
+		}
+		// Note it could theoretically be the case that num_writing_lanes is 0
+		if (lane::index() < num_writing_lanes) {
+			computed_predicate[output_pos] = warp_results_write_buffer;
+		}
+	}
+}
 
 } // namespace warp
 } // namespace primitives

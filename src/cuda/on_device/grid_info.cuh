@@ -2,7 +2,7 @@
 #ifndef SRC_CUDA_ON_DEVICE_GRID_INFO_CUH_
 #define SRC_CUDA_ON_DEVICE_GRID_INFO_CUH_
 
-#include "imports.cuh" // for lane_index()
+#include "imports.cuh"
 #include "builtins.cuh" // for lane_index()
 
 #include <cuda_runtime.h>
@@ -243,11 +243,13 @@ __fd__ Size global_index() {
 
 template <typename Size = size_t>
 __fd__ Size index_of_first_lane() {
+	constexpr const auto lane_index_mask = warp_size - 1;
 	return thread::index_in_block() & lane_index_mask;
 }
 
 template <typename Size = size_t>
 __fd__ Size global_index_of_first_lane() {
+	constexpr const auto lane_index_mask = warp_size - 1;
 	return thread::global_index<Size>() & lane_index_mask;
 }
 

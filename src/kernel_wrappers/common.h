@@ -6,13 +6,30 @@
 #include "kernel_wrappers/registered_wrapper.h"
 #include "kernels/resolve_launch_configuration.h"
 #include "cuda/functors.hpp"         // enough kernels need this to merit always including it
+#include "cuda/miscellany.h"
 #ifdef __CUDACC__
 #include "util/static_block.h"       // for registration in the factory during static init
 #endif
 #include "util/endianness.h"
+#include "util/integer.h"
 
 #include <functional>
 #include <utility>
+
+#ifndef __CUDACC__
+
+namespace cuda {
+
+	using util::uint_t;
+
+	template <unsigned N>
+	using size_type_by_index_size = cuda::promoted_size<uint_t<N>>;
+
+	template <typename T>
+	using size_type_by_index_type = size_type_by_index_size<sizeof(T)>;
+}
+
+#endif
 
 /**
  * We sometimes need to reconcile the types util::endianness_t

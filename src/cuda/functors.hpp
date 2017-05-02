@@ -42,6 +42,19 @@ using numeric_limits = std::numeric_limits<T>;
 #include <utility>
 #include <functional>
 
+/**
+ * See: http://stackoverflow.com/a/43521790/1593077 ;
+ * this cannot be done in C++17 or older without resorting to macros
+ */
+#define RETURNS(...) noexcept(noexcept(__VA_ARGS__)) -> decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
+#define OVERLOAD_SET_TYPE(...) \
+  struct { \
+    template<class...Args> \
+    __device__ __host__ auto operator()(Args&&...args)const \
+    RETURNS( __VA_ARGS__( std::forward<Args>(args)... ) ) \
+  }
+
 
 // Yes this _is_missing from std!
 // TODO: Perhaps include this from elsewhere?
@@ -403,11 +416,11 @@ public:
 	using result_type           = typename BinaryFunction::second_argument_type;
 
 	__fhd__ result_type operator()(
-		const first_argument_type& x) const 
-	{ 
-		BinaryFunction f; 
-		RHSNullaryFunction c; 
-		return f(x, c()); 
+		const first_argument_type& x) const
+	{
+		BinaryFunction f;
+		RHSNullaryFunction c;
+		return f(x, c());
 	}
 };
 
@@ -420,11 +433,11 @@ public:
 	using second_argument_type  = typename BinaryFunction::second_argument_type;
 	using result_type           = typename BinaryFunction::second_argument_type;
 	__fhd__ result_type operator()(
-		const second_argument_type& x) const 
-	{ 
-		BinaryFunction f; 
-		LHSNullaryFunction c; 
-		return f(c(), x); 
+		const second_argument_type& x) const
+	{
+		BinaryFunction f;
+		LHSNullaryFunction c;
+		return f(c(), x);
 	}
 };
 
@@ -678,7 +691,7 @@ struct shift_right: public std::binary_function<T, S, T> {
 template<typename T, typename S = unsigned>
 struct find_first_set: public std::unary_function<T, S> {
 	__fhd__ S operator()(const T& x) const {
-		return builtins::find_first_set(x);
+		return find_first_set(x);
 	}
 };
 
@@ -704,7 +717,7 @@ struct keep_only_highest_bit: public std::unary_function<T, T> {
 	__fd__ T operator()(const T& x) const { return cuda::keep_only_highest_set_bit(x); }
 };
 
-template<typename Result, typename BitContainer = unsigned>
+template<typename Result, typename BitContainer = standard_bit_container_t>
 struct population_count: public std::unary_function<BitContainer, Result> {
 	__fhd__ Result operator()(const BitContainer& x) const {
 		return builtins::population_count(x);
@@ -802,7 +815,7 @@ struct as_enumerated_unary :
 
 // 1-based! 0 means nothing is set
 // TODO: Document me!
-template<unsigned IndexSize, typename BitContainer = unsigned>
+template<unsigned IndexSize, typename BitContainer = standard_bit_container_t>
 struct global_index_of_last_set_bit :
 	public std::enable_if<
 		std::is_unsigned<BitContainer>::value,
@@ -816,7 +829,7 @@ struct global_index_of_last_set_bit :
 	{
 		constexpr auto num_bits_per_element = sizeof(BitContainer) * CHAR_BIT;
 		auto first_bit_set_in_reverse =
-			builtins::find_first_set(builtins::bit_reverse(element_bits));
+			cuda::find_first_set(builtins::bit_reverse(element_bits));
 		return first_bit_set_in_reverse ?
 			num_bits_per_element * pos +
 			(sizeof(BitContainer) * CHAR_BIT - first_bit_set_in_reverse + 1) : 0;
@@ -827,7 +840,7 @@ struct global_index_of_last_set_bit :
 // and more general constructs; but for now - we need it.
 // Note: Result is 1-based, all-1-bits result means nothing is set
 // TODO: Document me!
-template<unsigned IndexSize, typename BitContainer = unsigned>
+template<unsigned IndexSize, typename BitContainer = standard_bit_container_t>
 struct global_index_of_first_set_bit :
 	public std::enable_if<
 		std::is_unsigned<BitContainer>::value,
@@ -840,7 +853,7 @@ struct global_index_of_first_set_bit :
 		const index_type& pos, const BitContainer& element_bits) const
 	{
 		constexpr auto num_bits_per_element = sizeof(BitContainer) * CHAR_BIT;
-		auto first_set_in_element = builtins::find_first_set(element_bits);
+		auto first_set_in_element = cuda::find_first_set(element_bits);
 		return first_set_in_element ?
 			num_bits_per_element * pos + first_set_in_element :
 			cuda::all_one_bits<index_type>();

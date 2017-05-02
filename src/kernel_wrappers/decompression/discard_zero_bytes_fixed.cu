@@ -27,8 +27,9 @@ class kernel_t : public cuda::registered::kernel_t {
 public:
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
-	using uncompressed_type = util::uint_t<UncompressedSize>;
-	using compressed_type = util::uint_t<CompressedSize>;
+	using uncompressed_type = uint_t<UncompressedSize>;
+	using compressed_type   = uint_t<CompressedSize>;
+	using size_type         = size_type_by_index_size<IndexSize>;
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t              device_properties,
@@ -81,9 +82,9 @@ void kernel_t<IndexSize, UncompressedSize, CompressedSize, UncompressedEndiannes
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
 {
-	using index_type        = util::uint_t<IndexSize>;
-	using uncompressed_type = util::uint_t<UncompressedSize>;
-	using compressed_type   = util::uint_t<CompressedSize>;
+	using index_type        = uint_t<IndexSize>;
+	using uncompressed_type = uint_t<UncompressedSize>;
+	using compressed_type   = uint_t<CompressedSize>;
 
 	auto decompressed     = any_cast<uncompressed_type*     >(arguments.at("decompressed"     ));
 	auto compressed_input = any_cast<const compressed_type* >(arguments.at("compressed_input" ));

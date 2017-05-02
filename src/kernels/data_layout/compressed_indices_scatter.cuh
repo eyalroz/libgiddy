@@ -29,11 +29,11 @@ template <
 	unsigned RunLengthSize, unsigned RunElementSizeInBits
 >
 __device__ void scatter_single_run(
-	uint_t<ElementSize>*                __restrict__  target,
-	const uint_t<ElementSize>*          __restrict__  data,
-	const unsigned char*  __restrict__  run_offset_bytes,
-	uint_t<RunLengthSize>                           run_length,
-	uint_t<OutputIndexSize>       scatter_position_baseline_value)
+	uint_t<ElementSize>*        __restrict__  target,
+	const uint_t<ElementSize>*  __restrict__  data,
+	const unsigned char*        __restrict__  run_offset_bytes,
+	uint_t<RunLengthSize>                     run_length,
+	uint_t<OutputIndexSize>                   scatter_position_baseline_value)
 {
 	using integral_type = typename boost::uint_t<(int) RunElementSizeInBits>::exact;
 	static_assert(std::is_integral<integral_type>::value, "non-integral type");
@@ -63,16 +63,20 @@ __device__ void scatter_single_run(
  *
  * @note we do not use this as the overall kernel, since we want to improve
  * parallelism at least by having each block acting independently.
+ *
+ * @note assumes the interval length is smaller than the maximum possible
+ * length of the entire input, or that the number of runs in that single
+ * huge interval is less than its size. This is a trivial and safe assumption
  */
 template <unsigned OutputIndexSize, unsigned ElementSize, unsigned InputIndexSize, unsigned RunLengthSize = InputIndexSize>
 __device__ void scatter_unanchored(
 	uint_t<ElementSize>*            __restrict__  target,
 	const uint_t<ElementSize>*      __restrict__  data,
 	const uint_t<OutputIndexSize>*  __restrict__  scatter_position_run_baseline_values,
-	const unsigned char*                  __restrict__  scatter_position_run_individual_offset_sizes,
+	const unsigned char*            __restrict__  scatter_position_run_individual_offset_sizes,
 	const uint_t<RunLengthSize>*    __restrict__  scatter_position_run_lengths,
 	const uint_t<InputIndexSize>*   __restrict__  scatter_position_run_offsets_start_positions,
-	const unsigned char*                  __restrict__  scatter_position_offset_bytes,
+	const unsigned char*            __restrict__  scatter_position_offset_bytes,
 	uint_t<InputIndexSize>                        num_runs_in_interval
 )
 {
@@ -217,14 +221,14 @@ __global__ void scatter(
 	uint_t<ElementSize>*            __restrict__  target,
 	const uint_t<ElementSize>*      __restrict__  data,
 	const uint_t<RunLengthSize>*    __restrict__  scatter_position_run_lengths,
-	const unsigned char*                  __restrict__  scatter_position_run_individual_offset_sizes,
+	const unsigned char*            __restrict__  scatter_position_run_individual_offset_sizes,
 	const uint_t<OutputIndexSize>*  __restrict__  scatter_position_run_baseline_values,
 	const uint_t<InputIndexSize>*   __restrict__  scatter_position_run_offsets_start_positions,
-	const unsigned char*                  __restrict__  scatter_position_offset_bytes,
+	const unsigned char*            __restrict__  scatter_position_offset_bytes,
 	const uint_t<InputIndexSize>*   __restrict__  scatter_position_anchors,
 	uint_t<InputIndexSize>                        anchoring_period,
 	uint_t<InputIndexSize>                        num_output_position_runs,
-	uint_t<InputIndexSize>                        data_length)
+	size_type_by_index_size<InputIndexSize>       data_length)
 {
 	// Each block is responsible for scattering anchoring_period input elements
 	// into the target area

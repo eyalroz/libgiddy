@@ -30,10 +30,9 @@ template<unsigned IndexSize, typename UnaryOp, serialization_factor_t Serializat
 __global__ void unary_operation(
 	typename UnaryOp::result_type*          __restrict__  output,
 	const typename UnaryOp::argument_type*  __restrict__  input,
-	uint_t<IndexSize>                                     length)
+	size_type_by_index_size<IndexSize>                    length)
 {
-	using index_type = uint_t<IndexSize>;
-	auto f = [&output, &input](index_type pos) {
+	auto f = [&output, &input](decltype(length) pos) {
 		UnaryOp op;
 		output[pos] = op(input[pos]);
 	};

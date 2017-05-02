@@ -8,9 +8,7 @@
 
 using cuda::warp_size;
 using cuda::half_warp_size;
-using cuda::squared_warp_size;
 using cuda::log_warp_size;
-using cuda::lane_index_mask;
-
+using cuda::native_word_t;
 
 #endif /* CUDA_ON_DEVICE_IMPORTS_CUH_ */

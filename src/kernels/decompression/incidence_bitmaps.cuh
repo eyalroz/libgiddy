@@ -17,20 +17,26 @@ namespace incidence_bitmaps {
 
 using namespace grid_info::linear;
 
-using bit_container_t = unsigned;
-using bitmap_index_t  = unsigned char;
+/**
+ * I've decided to just fix this type rather than template over it, since
+ * realistically I don't see any possibility of  using more than 256
+ * individual bitmaps (in fact, probably anything over 32 is unrealistic)
+ */
+using bitmap_index_t  = uint8_t;
+using bitmap_size_type = size_type_by_index_size<sizeof(bitmap_index_t)>;
+
 
 namespace detail {
 
 namespace thread {
 
-template<unsigned IndexSize> // the decompression here is to bitmap indices, which are unsigned char
+template<unsigned IndexSize> // the decompression here is to bitmap indices
 __device__ void decompress_to_shared_mem_without_translation(
-	bitmap_index_t*         __restrict__  thread_decompressed,
-	const bit_container_t*  __restrict__  bitmaps,
-	uint_t<IndexSize>                     position_in_bitmaps,
-	uint_t<IndexSize>                     aligned_bitmap_size_in_ints,
-	bitmap_index_t                        num_bitmaps)
+	bitmap_index_t*                  __restrict__   thread_decompressed,
+	const standard_bit_container_t*  __restrict__   bitmaps,
+	uint_t<IndexSize>                               position_in_bitmaps,
+	uint_t<IndexSize>                               aligned_bitmap_size_in_containers,
+	bitmap_size_type                                num_bitmaps)
 {
 	// In each call to the function f,
 	// the warp will process warp_size unsigned's from each of the bitmasks - one
@@ -38,9 +44,9 @@ __device__ void decompress_to_shared_mem_without_translation(
 	// thus decompressing sizeof(unsigned) * warp_size elements, which should
 	// mean decompressing 1024 elements (into shared memory)
 
-	for (promoted_size<bitmap_index_t> bitmap_index = 0; bitmap_index < num_bitmaps; bitmap_index++) {
-		auto relevant_bitmap = bitmaps + aligned_bitmap_size_in_ints * bitmap_index;
-		bit_container_t bit_container_element = relevant_bitmap[position_in_bitmaps];
+	for (decltype(num_bitmaps) bitmap_index = 0; bitmap_index < num_bitmaps; bitmap_index++) {
+		auto relevant_bitmap = bitmaps + aligned_bitmap_size_in_containers * bitmap_index;
+		auto bit_container_element = relevant_bitmap[position_in_bitmaps];
 
 		// TODO: Consider dropping all the conditions, looping over all 32 elements,
 		// but ensuring we don't get bank conflicts by starting each threads at a
@@ -59,18 +65,18 @@ __device__ void decompress_to_shared_mem_without_translation(
 } // namespace detail
 
 // Note: There are at most 256 bitmaps, so if we use a dictionary, it is
-// indexed by an uint8_t / unsigned char.
+// indexed by an uint8_t / bitmap_index_t.
 template<
-	unsigned IndexSize, unsigned UncompressedSize, // the DictionaryIndex is unsigned char!
+	unsigned IndexSize, unsigned UncompressedSize,
 	unsigned BitmapAlignmentInInts,	bool UseDictionary = true>
 __global__ void decompress(
-	uint_t<UncompressedSize>*        __restrict__  decompressed,
-	const bit_container_t*           __restrict__  bitmaps,
-	const uint_t<UncompressedSize>*  __restrict__  dictionary_entries,
-	uint_t<IndexSize>                              bitmap_length,
-	unsigned char                                  num_bitmaps)
+	uint_t<UncompressedSize>*            __restrict__  decompressed,
+	const standard_bit_container_t*      __restrict__  bitmaps,
+	const uint_t<UncompressedSize>*      __restrict__  dictionary_entries,
+	size_type_by_index_size<IndexSize>                 bitmap_length,
+	bitmap_size_type                                   num_bitmaps)
 {
-	enum { bits_per_container = size_in_bits<bit_container_t>::value };
+	enum { bits_per_container = size_in_bits<standard_bit_container_t>::value };
 	using index_type = uint_t<IndexSize>;
 	using uncompressed_type = uint_t<UncompressedSize>;
 
@@ -81,21 +87,20 @@ __global__ void decompress(
 	// of bitmaps (i.e. values in the range {0..num_bitmaps - 1}, not
 	// dictionary-translated uncompressed values - even if we _are_
 	// going to use the dictionary eventually.
-	bitmap_index_t* warp_decompressed =
-		primitives::warp::get_warp_specific_shared_memory<unsigned char>(
+	auto warp_decompressed =
+		primitives::warp::get_warp_specific_shared_memory<bitmap_index_t>(
 			warp_size * bits_per_container);
-	bitmap_index_t* thread_decompressed =
-		warp_decompressed + bits_per_container * lane::index();
-	uint_t<IndexSize> aligned_bitmap_length =
+	auto thread_decompressed = warp_decompressed + bits_per_container * lane::index();
+	auto aligned_bitmap_length =
 		round_up_to_multiple_of_power_of_2(bitmap_length, BitmapAlignmentInInts);
 
-	const auto& f = [&](index_type pos) {
+	const auto& f = [&](decltype(bitmap_length) pos) {
 
-		if (pos < bitmap_length) {
+//		if (pos < bitmap_length) {
 			detail::thread::decompress_to_shared_mem_without_translation<IndexSize>(
 				thread_decompressed, bitmaps, pos,
 				aligned_bitmap_length, num_bitmaps);
-		}
+//		}
 
 		// now the entire warp has decompressed (or part of the warp, if
 		// we're at the end of the grid)
@@ -121,13 +126,12 @@ __global__ void decompress(
 		}
 	};
 
-	primitives::grid::linear::at_block_stride(
-		round_up_to_multiple_of_power_of_2(bitmap_length, (index_type) warp_size), f);
-
+	auto rounded_up_length = round_up_to_full_warps(bitmap_length);
+	primitives::grid::linear::at_block_stride(rounded_up_length, f);
 }
 
 template<
-	unsigned IndexSize, unsigned UncompressedSize, // the DictionaryIndex is unsigned char!
+	unsigned IndexSize, unsigned UncompressedSize,
 	unsigned BitmapAlignmentInInts,
 	bool UseDictionary = true>
 class launch_config_resolution_params_t final : public kernels::launch_config_resolution_params_t {
@@ -145,12 +149,12 @@ public:
 		)
 	{
 		auto bitmap_length_in_containers =
-			util::round_up(uncompressed_length, util::size_in_bits<unsigned>::value);
+			util::round_up(uncompressed_length, util::size_in_bits<standard_bit_container_t>::value);
 		// TODO:
 		grid_construction_resolution            = thread;
 		serialization_option                    = none;
 		dynamic_shared_memory_requirement.per_length_unit =
-			size_in_bits<bit_container_t>::value * sizeof(bitmap_index_t);
+			size_in_bits<standard_bit_container_t>::value * sizeof(bitmap_index_t);
 		length                                  = uncompressed_length;
 		quanta.threads_in_block                 = warp_size;
 	};

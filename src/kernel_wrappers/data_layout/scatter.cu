@@ -17,9 +17,11 @@ class kernel_t : public cuda::registered::kernel_t {
 public:
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
-	using element_type = util::uint_t<ElementSize>;
-	using input_index_type = util::uint_t<InputIndexSize>;
-	using output_index_type = util::uint_t<OutputIndexSize>;
+	using element_type = uint_t<ElementSize>;
+	using input_index_type = uint_t<InputIndexSize>;
+	using input_size_type   = size_type_by_index_size<InputIndexSize>;
+	using output_index_type = uint_t<OutputIndexSize>;
+	using output_size_type  = size_type_by_index_size<OutputIndexSize>;
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t           device_properties,
@@ -68,7 +70,7 @@ void kernel_t<OutputIndexSize, ElementSize, InputIndexSize, SerializationFactor>
 	auto target       = any_cast<element_type*            >(arguments.at("target"        ));
 	auto data         = any_cast<const element_type*      >(arguments.at("data"          ));
 	auto indices      = any_cast<const output_index_type* >(arguments.at("indices"       ));
-	auto data_length  = any_cast<size_t                   >(arguments.at("data_length"   ));
+	auto data_length  = any_cast<input_size_type          >(arguments.at("data_length"   ));
 
 
 	cuda::kernel::enqueue_launch(

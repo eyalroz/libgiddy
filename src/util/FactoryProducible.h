@@ -1,5 +1,5 @@
-#ifndef UTIL_FACTORYPRODUCIBLESUBCLASSES_H_
-#define UTIL_FACTORYPRODUCIBLESUBCLASSES_H_
+#ifndef UTIL_FACTORY_PRODUCIBLE_H_
+#define UTIL_FACTORY_PRODUCIBLE_H_
 
 #include <typeinfo>
  
@@ -28,15 +28,29 @@ public:
 
 	template <typename U>
 	static void registerInSubclassFactory(const Key& key, bool ignore_repeat_registration = true) {
-		getSubclassFactory().template registerClass<U>(key, ignore_repeat_registration);
+		getSubclassFactory_().template registerClass<U>(key, ignore_repeat_registration);
 	}
 
 protected:
 	using SubclassFactory = util::ExposedFactory<Key, Base, ConstructionArgs...>;
 
-	static SubclassFactory& getSubclassFactory() {
+	/**
+	 * This method is sort of an attempt to avoid the static initialization
+	 * fiasco; if you call it, you're guaranteed that the initialization
+	 * of subclass_factory happens before you get it.
+	 *
+	 * @return the class' static factory for producing subclasses - initialized
+	 */
+
+	static SubclassFactory& getSubclassFactory_() {
 		static SubclassFactory subclass_factory;
 		return subclass_factory;
+	}
+
+
+public:
+	static const SubclassFactory& getSubclassFactory() {
+		return getSubclassFactory_();
 	}
 
 	// This is not implemented generically for the mixin class, which
@@ -47,7 +61,7 @@ protected:
 
 	// Can't I return an rvalue reference and avoid pointers altogether?
 	static std::unique_ptr<Base> produceSubclass(const Key& subclass_key, ConstructionArgs... args) {
-		if (!getSubclassFactory().canProduce(subclass_key)) {
+		if (not getSubclassFactory().canProduce(subclass_key)) {
 			throw std::invalid_argument(std::string("No subclass of the base type ")
 				+ util::type_name<Base>() + " is registered with key \""
 				+ std::string(subclass_key) + "\"");
@@ -73,4 +87,4 @@ protected:
 } // namespace mixins
 } // namespace util
 
-#endif /* UTIL_FACTORYPRODUCIBLESUBCLASSES_H_ */
+#endif /* UTIL_FACTORY_PRODUCIBLE_H_ */

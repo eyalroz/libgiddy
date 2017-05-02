@@ -123,8 +123,6 @@ public:
 
 	virtual const cuda::device_function_t get_device_function() const = 0;
 
-
-
 	virtual ~kernel_t() { }
 
 };
@@ -203,7 +201,6 @@ launch_configuration_t resolve_launch_configuration(
 	launch_configuration_limits_t   limits = { },
 	ResolutionParameters...         extra_params)
 {
-	// TODO: Swap the limits and the extra parameters
 	return kernel.resolve_launch_configuration(
 		device_properties,
 		extra_params...,

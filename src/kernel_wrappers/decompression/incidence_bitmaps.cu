@@ -9,16 +9,17 @@ namespace kernels {
 namespace decompression {
 namespace incidence_bitmaps {
 
-using bit_container_t = unsigned;
-using bitmap_index_t  = unsigned char;
 
 // TODO: This currently ignores the possibility of a sorted variant of the kernel
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary = true>
 class kernel_t : public cuda::registered::kernel_t {
 public:
-	using uncompressed_type = util::uint_t<UncompressedSize>;
-	using bitmap_index_type = unsigned char;
+	using bit_container_t   = standard_bit_container_t;
+	using uncompressed_type = uint_t<UncompressedSize>;
+	using bitmap_index_type = unsigned char; // code duplication with the .cuh file here
+	using size_type         = size_type_by_index_size<IndexSize>;
+	using num_bitmaps_type  = size_type_by_index_size<sizeof(bitmap_index_type)>;
 
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
@@ -64,14 +65,14 @@ void kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
 {
-	using uncompressed_type = util::uint_t<UncompressedSize>;
+	using uncompressed_type = uint_t<UncompressedSize>;
 	using bitmap_index_type = unsigned char;
 
 	auto decompressed       = any_cast<uncompressed_type*       >(arguments.at("decompressed"       ));
 	auto incidence_bitmaps  = any_cast<const bit_container_t*   >(arguments.at("incidence_bitmaps"  ));
 	auto dictionary_entries = any_cast<const uncompressed_type* >(arguments.at("dictionary_entries" ));
-	auto bitmap_length      = any_cast<util::uint_t<IndexSize>  >(arguments.at("bitmap_length"      ));
-	auto num_bitmaps        = any_cast<bitmap_index_type        >(arguments.at("num_bitmaps"        ));
+	auto bitmap_length      = any_cast<size_type                >(arguments.at("bitmap_length"      ));
+	auto num_bitmaps        = any_cast<num_bitmaps_type         >(arguments.at("num_bitmaps"        ));
 
 	cuda::kernel::enqueue_launch(
 		*this, stream, launch_config,
@@ -80,7 +81,9 @@ void kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>
 }
 
 template<unsigned IndexSize, unsigned UncompressedSize, unsigned BitmapAlignmentInInts, bool UseDictionary>
-const device_function_t kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>::get_device_function() const
+const device_function_t kernel_t<
+	IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary
+>::get_device_function() const
 {
 	return reinterpret_cast<const void*>(cuda::kernels::decompression::incidence_bitmaps
 		::decompress<IndexSize, UncompressedSize, BitmapAlignmentInInts, UseDictionary>);
@@ -88,13 +91,13 @@ const device_function_t kernel_t<IndexSize, UncompressedSize, BitmapAlignmentInI
 
 
 static_block {
-	//                   IndexSize      UncompressedSize  BitmapAlignmentInInts  UseDictionary
+	//             IndexSize  UncompressedSize  BitmapAlignmentInInts  UseDictionary
 	//----------------------------------------------------------------------------------
-	kernel_t < 4,        1,                2,                     true  >::registerInSubclassFactory();
-	kernel_t < 4,        2,                2,                     true  >::registerInSubclassFactory();
-	kernel_t < 4,        4,                2,                     true  >::registerInSubclassFactory();
-	kernel_t < 4,        8,                2,                     true  >::registerInSubclassFactory();
-	kernel_t < 4,        1,                2,                     false >::registerInSubclassFactory();
+	kernel_t < 4,  1,         2,                true  >::registerInSubclassFactory();
+	kernel_t < 4,  2,         2,                true  >::registerInSubclassFactory();
+	kernel_t < 4,  4,         2,                true  >::registerInSubclassFactory();
+	kernel_t < 4,  8,         2,                true  >::registerInSubclassFactory();
+	kernel_t < 4,  1,         2,                false >::registerInSubclassFactory();
 }
 
 #endif /* __CUDACC__ */

@@ -61,6 +61,36 @@ constexpr inline S div_rounding_up(const S& dividend, const T& divisor) {
 */
 }
 
+template <typename T>
+constexpr int log2_of_power_of_2(T p)
+{
+	using unsigned_type = typename std::make_unsigned<T>::type;
+	return builtins::count_trailing_zeros(static_cast<unsigned_type>(p));
+//	return builtins::count_trailing_zeros(p);
+}
+
+template <typename T, typename S>
+constexpr T div_by_power_of_2(const T& dividend, const S& divisor)
+{
+	return dividend >> log2_of_power_of_2(divisor);
+}
+
+template <typename T, typename S>
+constexpr T div_by_power_of_2_rounding_up(const T& dividend, const S& divisor)
+{
+/*  // Only safe for C++14 and later
+	using unsigned_type = typename std::make_unsigned<S>::type;
+	unsigned_type unsigned_divisor = divisor;
+	constexpr auto log_2_of_divisor = util::builtins::count_trailing_zeros(unsigned_divisor);
+	constexpr auto mask = unsigned_divisor - 1;
+	auto correction_for_rounding_up = ((dividend & mask) + mask) >> log_2_of_divisor;
+
+	return (dividend >> log_2_of_divisor) + correction_for_rounding_up;
+	*/
+	return (dividend >> log2_of_power_of_2(divisor)) +
+		(((dividend & (divisor - 1)) + (divisor - 1)) >> log2_of_power_of_2(divisor));
+}
+
 /**
 * A more 'semantically clear' version for x % y == 0
 */
@@ -132,7 +162,7 @@ template <typename T>
 inline T round_down_to_power_of_2(
 	typename std::enable_if<std::is_unsigned<T>::value, T>::type const& x)
 {
-	return 1 << ilog2<T>(x);
+	return 1 << log2_of_power_of_2<T>(x);
 }
 
 /**

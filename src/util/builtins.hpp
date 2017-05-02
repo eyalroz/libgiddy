@@ -3,6 +3,8 @@
 
 #include <climits>
 #include <cstdint>
+#include <x86intrin.h>
+#include <smmintrin.h>
 
 // Move this out of here, it should really not be CUDA-specific
 // (but should have its own small specific header, perhaps with some other related definitions
@@ -95,6 +97,19 @@ template <typename LHS, typename RHS = LHS>
 bool substraction_will_overflow  (LHS x, RHS y) { return __builtin_sub_overflow_p(x,y, decltype(x - y)(0)); }
 template <typename LHS, typename RHS = LHS>
 bool multiplication_will_overflow(LHS x, RHS y) { return __builtin_mul_overflow_p(x,y, decltype(x * y)(0)); }
+
+
+//
+// These may be intel-specific :-(
+//
+
+template <typename V>
+inline uint32_t crc32_castagnioli(uint32_t c, V v);
+
+template <> inline uint32_t crc32_castagnioli<uint8_t >(uint32_t c, uint8_t v ) { return __builtin_ia32_crc32qi (c, v); }
+template <> inline uint32_t crc32_castagnioli<uint16_t>(uint32_t c, uint16_t v) { return __builtin_ia32_crc32hi (c, v); }
+template <> inline uint32_t crc32_castagnioli<uint32_t>(uint32_t c, uint32_t v) { return __builtin_ia32_crc32si (c, v); }
+// template <> inline uint32_t crc32_castagnioli<uint16_t>(uint32_t c, uint16_t v) { return __builtin_ia32_crc32di (c, v); }
 
 
 // Missing: floating-point-related primities such as huge_val, nan, etc. - and a few others

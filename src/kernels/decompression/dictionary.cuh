@@ -20,20 +20,6 @@ namespace dictionary {
  *
  */
 
-template <typename T, typename Index>
-struct Dictionary {
-	using index_type = Index;
-	using entry_type = T;
-		// That's very simply. It could have been something else, e.g. for a string -
-		// an std::array of characters and the actual length of the string in case
-		// it's shorter
-public:
-	const Index     num_entries;
-	const T* const  entries;
-};
-
-
-
 /**
  * Decompress data which was compressed by dropping off several (all-zero) bytes (either
  * from the beginning or from the end of each data element).
@@ -78,14 +64,11 @@ template<
 	uint_t<UncompressedSize>*           __restrict__  decompressed,
 	const uint_t<DictionaryIndexSize>*  __restrict__  compressed_input,
 	const uint_t<UncompressedSize>*     __restrict__  dictionary_entries,
-	uint_t<IndexSize>                                 length, // of compressed and uncompressed data - it's the same value
-	size_t                                                  num_dictionary_entries,
-	bool                                                    cache_dictionary_in_shared_memory,
-	serialization_factor_t                                  serialization_factor)
+	size_type_by_index_size<IndexSize>                length, // of compressed and uncompressed data - it's the same value
+	size_type_by_index_size<DictionaryIndexSize>      num_dictionary_entries,
+	bool                                              cache_dictionary_in_shared_memory,
+	serialization_factor_t                            serialization_factor)
 {
-	using dictionary_index_type = uint_t<DictionaryIndexSize>;
-	using uncompressed_type = uint_t<UncompressedSize>;
-
 	gather::detail::gather<IndexSize, UncompressedSize, DictionaryIndexSize>(
 		decompressed, dictionary_entries, compressed_input, num_dictionary_entries, length,
 		cache_dictionary_in_shared_memory, serialization_factor);

@@ -16,8 +16,10 @@ class kernel_t : public cuda::registered::kernel_t {
 public:
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
-	using dictionary_index_type = util::uint_t<DictionaryIndexSize>;
-	using uncompressed_type = util::uint_t<UncompressedSize>;
+	using dictionary_index_type = uint_t<DictionaryIndexSize>;
+	using dictionary_size_type  = size_type_by_index_size<DictionaryIndexSize>;
+	using uncompressed_type     = uint_t<UncompressedSize>;
+	using size_type             = size_type_by_index_size<IndexSize>;
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t              device_properties,
@@ -52,14 +54,10 @@ launch_configuration_t kernel_t<IndexSize, UncompressedSize, DictionaryIndexSize
 	arguments_type                 extra_arguments,
 	launch_configuration_limits_t  limits) const
 {
-	auto num_dictionary_entries =
-		any_cast<size_t>(extra_arguments.at(                       "num_dictionary_entries"));
-	auto data_length =
-		any_cast<size_t>(extra_arguments.at(                       "data_length"));
-	optional<bool> cache_input_data_in_shared_mem =
-		any_cast<bool>(maybe_at(extra_arguments,                   "cache_input_data_in_shared_mem"));
-	auto serialization_factor =
-		any_cast<serialization_factor_t>(maybe_at(extra_arguments, "serialization_factor"));
+	auto num_dictionary_entries = any_cast<size_t>(extra_arguments.at("num_dictionary_entries"));
+	auto data_length            = any_cast<size_t>(extra_arguments.at("data_length"));
+	optional<bool> cache_input_data_in_shared_mem = any_cast<bool>(maybe_at(extra_arguments,"cache_input_data_in_shared_mem"));
+	auto serialization_factor   = any_cast<serialization_factor_t>(maybe_at(extra_arguments, "serialization_factor"));
 
 	return resolve_launch_configuration(
 		device_properties, kernel_function_attributes,
@@ -73,8 +71,8 @@ void kernel_t<IndexSize, UncompressedSize, DictionaryIndexSize>::enqueue_launch(
 	const launch_configuration_t&  launch_config,
 	arguments_type                 arguments) const
 {
-	using dictionary_index_type = util::uint_t<DictionaryIndexSize>;
-	using uncompressed_type = util::uint_t<UncompressedSize>;
+	using dictionary_index_type = uint_t<DictionaryIndexSize>;
+	using uncompressed_type = uint_t<UncompressedSize>;
 
 	auto maybe_cache_data_in_shared_mem =
 		any_cast<bool>(maybe_at(arguments, "cache_dictionary_in_shared_mem"));
@@ -88,8 +86,8 @@ void kernel_t<IndexSize, UncompressedSize, DictionaryIndexSize>::enqueue_launch(
 	auto decompressed            = any_cast<uncompressed_type*           >(arguments.at("decompressed"           ));
 	auto compressed_input        = any_cast<const dictionary_index_type* >(arguments.at("compressed_input"       ));
 	auto dictionary_entries      = any_cast<const uncompressed_type*     >(arguments.at("dictionary_entries"     ));
-	auto length                  = any_cast<util::uint_t<IndexSize>      >(arguments.at("length"                 ));
-	auto num_dictionary_entries  = any_cast<size_t                       >(arguments.at("num_dictionary_entries" ));
+	auto length                  = any_cast<size_type                    >(arguments.at("length"                 ));
+	auto num_dictionary_entries  = any_cast<dictionary_size_type         >(arguments.at("num_dictionary_entries" ));
 
 	cuda::kernel::enqueue_launch(
 		*this, stream, launch_config,

@@ -9,6 +9,7 @@
 #include "cuda/api/types.h"
 #include "cuda/on_device/builtins.cuh"
 	// for absolute_value(), sum_of_absolute_differences(), minimum(), maximum() etc...
+#include "cuda/bit_operations.cuh"
 
 #define __fd__ __forceinline__ __device__
 
@@ -46,19 +47,17 @@ __fd__ constexpr T div_rounding_up(const T& dividend, const S& divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
+template <typename T>
+__fd__ unsigned log2_of_power_of_2(T p)
+{
+	// Remember 0 is _not_ a power of 2.
+	return  builtins::population_count(p - 1);
+}
+
 template <typename T, typename S>
 __fd__ constexpr T div_by_power_of_2(const T& dividend, const S& divisor)
 {
-	// TODO: Can we do better than this?
-#ifndef __CUDA_ARCH__
-#ifdef SRC_UTIL_BUILTINS_HPP_
-	return dividend >> util::builtins::count_trailing_zeros(divisor);
-#else
-	return dividend >> (builtins::find_first_set(divisor) - 1);
-#endif
-#else
-	return dividend >> (builtins::find_first_set(divisor) - 1);
-#endif
+	return dividend >> log2_of_power_of_2(divisor);
 }
 
 template <typename T>
@@ -70,17 +69,31 @@ __fd__ constexpr T div_by_fixed_power_of_2(const T& dividend)
 	return dividend >> log2_constexpr(Divisor);
 }
 
-
 template <typename T, typename S>
-__fd__ constexpr T div_by_power_of_2_rounding_up(const T& dividend, const S& divisor)
+__fd__ T div_by_power_of_2_rounding_up(const T& dividend, const S& divisor)
 {
-	return div_by_power_of_2(dividend, divisor) + ((dividend & (divisor-1)) > 0);
+	auto mask = divisor - 1; // Remember: 0 is _not_ a power of 2
+	auto log_2_of_divisor = builtins::population_count(mask);
+	auto correction_for_rounding_up = ((dividend & mask) + mask) >> log_2_of_divisor;
+
+	return (dividend >> log_2_of_divisor) + correction_for_rounding_up;
 }
 
 template <typename T, typename S, S Divisor>
 __fd__ constexpr T div_by_fixed_power_of_2_rounding_up(const T& dividend)
 {
-	return div_by_fixed_power_of_2<T,S,Divisor>(dividend) + ((dividend & (Divisor-1)) > 0);
+/*
+	// C++14 and later:
+
+	constexpr auto log_2_of_divisor = log2_constexpr(Divisor);
+	constexpr auto mask = Divisor - 1;
+	auto correction_for_rounding_up = ((dividend & mask) + mask) >> log_2_of_divisor;
+
+	return (dividend >> log_2_of_divisor) + correction_for_rounding_up;
+*/
+	// single-statement C++11 version
+	return (dividend >> log2_constexpr(Divisor)) +
+		(((dividend & (Divisor - 1)) + (Divisor - 1)) >> log2_constexpr(Divisor));
 }
 
 template <typename T>
@@ -95,12 +108,19 @@ __fd__ constexpr T round_down(const T& x, const S& y)
 	return x - x%y;
 }
 
+/**
+ * @note Don't use this with negative values.
+ */
 template <typename T>
-__fd__ constexpr T round_down_to_warp_size(typename std::enable_if<std::is_unsigned<T>::value, T>::type const & x)
+__fd__ constexpr T round_down_to_warp_size(const T& x)
 {
-	return x & warp_size - 1;
+	return x & ~(warp_size - 1);
 }
 
+/**
+ * @note implemented in an unsafe way - will overflow for values close
+ * to the maximum
+ */
 template <typename T, typename S>
 __fd__ constexpr T round_up(const T& x, const S& y)
 {
@@ -130,7 +150,7 @@ round_up_to_power_of_2(const T& x, const S& power_of_2) {
  */
 template <typename T>
 __fd__ constexpr T round_up_to_full_warps(const T& x) {
-	return round_up_to_power_of_2(x, warp_size);
+	return round_up_to_power_of_2<T, native_word_t>(x, warp_size);
 }
 
 template <typename T, typename Lower = T, typename Upper = T>

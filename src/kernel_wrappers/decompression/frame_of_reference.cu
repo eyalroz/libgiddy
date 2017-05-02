@@ -24,8 +24,10 @@ template<
 	typename Compressed, typename UnaryModelFunction>
 class kernel_t : public cuda::registered::kernel_t {
 public:
-	using model_coefficients_type = typename UnaryModelFunction::coefficients_type;
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
+
+	using size_type               = size_type_by_index_size<IndexSize>;
+	using model_coefficients_type = typename UnaryModelFunction::coefficients_type;
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t           device_properties,

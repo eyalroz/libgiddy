@@ -14,9 +14,20 @@ namespace cuda {
 
 namespace registered {
 
+/**
+ * This child of the more general CUDA kernel wrappers is essentially
+ * about a single feature - registering itself in a factory of wrappers
+ * on program startup (well, up to linking issues anyway).
+ *
+ * @note It's current custom, for kernel wrappers inheriting this one,
+ * to be more lax in the typing of extra arguments to
+ * @code resolve_launch_configuration than to @ref enqueue_launch,
+ * since the pickyness does not help performance like it might on
+ * the GPU.
+ */
 class kernel_t :
 	public cuda::kernel_t,
-	public util::mixins::FactoryProducible<std::string, kernel_t>
+	protected util::mixins::FactoryProducible<std::string, kernel_t>
 {
 public:
 	using factory_key_type = std::string;
@@ -24,7 +35,7 @@ public:
 	using factory_producible_mixin_type = util::mixins::FactoryProducible<factory_key_type, kernel_t>;
 	using factory_producible_mixin_type::produceSubclass;
 	using factory_producible_mixin_type::getSubclassFactory;
-		// Just in case you want to do something with all subclasses
+		// In case you want to do something with all subclasses
 };
 
 namespace detail {

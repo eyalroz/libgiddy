@@ -133,13 +133,6 @@ template <typename T>
 using host_code_optional = std::experimental::optional<T>;
 } // namespace cuda
 #else
-#if __cplusplus < 201402L
-#include "util/optional.hpp"
-namespace cuda {
-template <typename T>
-using host_code_optional = std::experimental::optional<T>;
-} // namespace cuda
-#else
 #if __cplusplus > 201402L
 // should be C++17 or later
 #include <optional>
@@ -148,10 +141,9 @@ template <typename T>
 using host_code_optional = std::optional<T>;
 } // namespace cuda
 #else
-#error "something strange is going on with the __cplusplus version"
+#error "the __cplusplus variable is set to before C++ 2014; that's is not supported for host-side code"
 #endif /* __cplusplus > 201402L */
 #endif /* __cplusplus == 201402L */
-#endif /* __cplusplus < 201402L */
 
 namespace cuda {
 

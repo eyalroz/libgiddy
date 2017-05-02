@@ -33,7 +33,7 @@ __global__ void scatter(
 	uint_t<ElementSize>*            __restrict__  target,
 	const uint_t<ElementSize>*      __restrict__  data,
 	const uint_t<OutputIndexSize>*  __restrict__  indices,
-	size_t                                              data_length)
+	size_type_by_index_size<InputIndexSize>       data_length)
 {
 	using element_type = uint_t<ElementSize>;
 	using input_index_type = uint_t<InputIndexSize>;

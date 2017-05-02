@@ -14,38 +14,13 @@
 #include "cuda/syntax_replacement.h"
 #include "cuda/api/types.h"
 #include "cuda/api/constants.h"
+#include "cuda/miscellany.h"
 
 #include "cuda/on_device/grid_info.cuh"
+#include "cuda/on_device/imports.cuh"
 
 #include <type_traits>
 
-/**
- * Use this type when walking index variables collaboratively among
- * multiple threads along some array. The reason you can't just use
- * the original size type is twofold:
- *
- * 1. Occasionally you might have
- *
- *      pos += blockDim.x * blockDim.y * blockDim.z;
- *
- *    e.g. when you work at block stride on a linear input. Well,
- *    if the type of pos is not large enough (e.g. char) - you would
- *    get into infinite loops.
- *
- * 2. The native integer type on a GPU is 32-bit - at least on CUDA;
- *    so there's not much sense of keeping an index variable in some
- *    smaller type. At best, the compiler will switch it to a 32-bit
- *    value; at worst, you'll waste time putting it into and out of
- *    32-bit variables
- */
-template <typename Size>
-using promoted_size = typename std::common_type<Size,unsigned>::type;
-
-/**
- * TODO:
- * - There should be some slimmed-down version of the standard template library for
- *   device-side code.
- */
 template <typename T>
 forceinline __device__ void swap(T& x, T& y) {
    T _x = x;

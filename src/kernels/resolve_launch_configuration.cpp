@@ -138,11 +138,15 @@ grid_block_dimension_t determine_max_threads_per_block(
 	const limits_t&  limits,
 	size_t           effective_length)
 {
+	constexpr const size_t size_t_maximum_value = std::numeric_limits<size_t>::max();
+
 	struct {
 		size_t by_device;
 		size_t by_num_length_units;
-		size_t by_one_time_limits { std::numeric_limits<size_t>::max() };
-		size_t by_dynamic_shared_mem { std::numeric_limits<size_t>::max() };
+		size_t by_params_thread_limit;
+		size_t by_params_warp_limit   { size_t_maximum_value };
+		size_t by_one_time_limits     { size_t_maximum_value };
+		size_t by_dynamic_shared_mem  { size_t_maximum_value };
 		size_t by_device_function;
 	} threads_per_block_constraints;
 
@@ -168,7 +172,15 @@ grid_block_dimension_t determine_max_threads_per_block(
 		util::round_up(determine_block_length_quantum(params),
 			effective_length * max_threads_for_single_length_unit);
 	threads_per_block_constraints.by_one_time_limits =
-		limits.block_size.value_or(std::numeric_limits<size_t>::max());
+		limits.block_size.value_or(size_t_maximum_value);
+
+	threads_per_block_constraints.by_params_thread_limit =
+		params.upper_limits.threads_in_block.value_or(size_t_maximum_value);
+
+	threads_per_block_constraints.by_params_warp_limit =
+		params.upper_limits.warps_in_block ?
+			params.upper_limits.warps_in_block.value() * warp_size :
+			size_t_maximum_value;
 
 	if (params.use_dynamic_shared_memory()) {
 		if (params.dynamic_shared_memory_requirement.per_block &&
@@ -192,7 +204,10 @@ grid_block_dimension_t determine_max_threads_per_block(
 			params.kernel_function_attributes.maxThreadsPerBlock; break;
 	case resolution_t::warp:
 		threads_per_block_constraints.by_device_function =
-			params.kernel_function_attributes.maxThreadsPerBlock / warp_size; break;
+			util::round_down_to_power_of_2(
+				params.kernel_function_attributes.maxThreadsPerBlock,
+				warp_size);
+		break;
 	default:
 		threads_per_block_constraints.by_device_function =
 			threads_per_block_constraints.by_device;
@@ -203,6 +218,8 @@ grid_block_dimension_t determine_max_threads_per_block(
 	max_num_threads = std::min(max_num_threads, threads_per_block_constraints.by_device_function);
 	max_num_threads = std::min(max_num_threads, threads_per_block_constraints.by_num_length_units);
 	max_num_threads = std::min(max_num_threads, threads_per_block_constraints.by_one_time_limits);
+	max_num_threads = std::min(max_num_threads, threads_per_block_constraints.by_params_thread_limit);
+	max_num_threads = std::min(max_num_threads, threads_per_block_constraints.by_params_warp_limit);
 	if (params.must_have_power_of_2_threads_per_block) {
 		max_num_threads = util::round_down_to_power_of_2<size_t>(max_num_threads);
 	}

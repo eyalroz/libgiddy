@@ -112,10 +112,9 @@ template<
 __global__ void decompress(
 	uint_t<UncompressedSize>*      __restrict__  decompressed,
 	const uint_t<CompressedSize>*  __restrict__  compressed_input,
-	uint_t<IndexSize>                            length)
+	size_type_by_index_size<IndexSize>           length)
 {
-	using index_type = uint_t<IndexSize>;
-	auto f = [&decompressed, &compressed_input](index_type pos) {
+	auto f = [&decompressed, &compressed_input](decltype(length) pos) {
 		decompressed[pos] =
 			pad_high_bytes<UncompressedSize, CompressedSize, UncompressedEndianness>()(
 				compressed_input[pos]

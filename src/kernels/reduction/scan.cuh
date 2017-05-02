@@ -74,12 +74,14 @@ template<
 	typename PretransformOp = functors::identity<InputDatum>
 	>
 __forceinline__ __device__ typename ReductionOp::result_type reduce_within_segment(
-	const InputDatum*  __restrict__  data,
-	uint_t<IndexSize>                segment_length,
-	uint_t<IndexSize>                segment_start_position = 0)
+	const InputDatum*  __restrict__     data,
+	size_type_by_index_size<IndexSize>  segment_length,
+	uint_t<IndexSize>                   segment_start_position = 0)
 {
-	using index_type = uint_t<IndexSize>;
+	using index_type        = uint_t<IndexSize>;
 	using pretransform_type = typename PretransformOp::result_type;
+	using scan_result_type  = typename ReductionOp::result_type;
+	using size_type         = size_type_by_index_size<IndexSize>;
 	using namespace grid_info::linear;
 
 	static_assert(std::is_same<
@@ -89,13 +91,13 @@ __forceinline__ __device__ typename ReductionOp::result_type reduce_within_segme
 	// single threads reduce independently
 
 	ReductionOp reduction_op;
-	typename ReductionOp::result_type thread_result = reduction_op.neutral_value();
+	scan_result_type thread_result = reduction_op.neutral_value();
 
-	for(index_type pos = segment_start_position + thread::index_in_block();
+	for(size_type pos = segment_start_position + thread::index_in_block();
 		pos < segment_start_position + segment_length; pos += block::length())
 	{
 		typename ReductionOp::accumulator accumulation_op;
-		auto pretransformed_datum = reduction::detail::apply_unary_op<index_type, PretransformOp>(
+		auto pretransformed_datum = reduction::detail::apply_unary_op<size_type, PretransformOp>(
 			pos, data[pos]);
 		accumulation_op(thread_result, pretransformed_datum);
 	}
@@ -125,16 +127,17 @@ template<unsigned IndexSize, typename ReductionOp, typename InputDatum,
 __global__ void reduce_segments(
 	typename ReductionOp::result_type*  __restrict__  segment_reductions,
 	const InputDatum*                   __restrict__  data,
-	uint_t<IndexSize>                                 total_length,
-	uint_t<IndexSize>                                 full_segment_length)
+	size_type_by_index_size<IndexSize>                total_length,
+	size_type_by_index_size<IndexSize>                full_segment_length)
 {
 	using namespace grid_info::linear;
 	using result_type = typename ReductionOp::result_type;
-	using index_type = uint_t<IndexSize>;
+	using index_type  = uint_t<IndexSize>;
+	using size_type   = size_type_by_index_size<IndexSize>;
 
 //  We could have determined the segment length ourselves... but probably
 //  it's more important to be flexible and allow callers to set this value
-//	index_type full_segment_length =
+//	size_type full_segment_length =
 //		round_up(div_rounding_up(total_length, grid::num_blocks()), block::length());
 
 	static_assert(
@@ -143,7 +146,7 @@ __global__ void reduce_segments(
 		"Only all-same-argument reduction operations are supported at this time.");
 		// ... but note these don't have to be the same as InputDatum
 
-	index_type block_segment_start_position = full_segment_length * block::index();
+	auto block_segment_start_position = full_segment_length * block::index();
 
 	// Note: It is up to the calling code to ensure that
 	// block_segment_start_position < total_length! Otherwise we'll have an access
@@ -160,7 +163,7 @@ __global__ void reduce_segments(
 		return;
 	}
 
-	index_type block_segment_length = builtins::minimum(
+	auto block_segment_length = builtins::minimum(
 		total_length - block_segment_start_position, full_segment_length);
 
 //	grid_printf("total_length = %u", (unsigned) total_length);
@@ -291,7 +294,7 @@ __device__ typename ReductionOp::result_type scan_segment(
 	typename ReductionOp::result_type*  __restrict__  results,
 	typename ReductionOp::result_type*  __restrict__  scratch_area,
 	const InputDatum*                   __restrict__  data,
-	uint_t<IndexSize>                                 segment_length,
+	size_type_by_index_size<IndexSize>                segment_length,
 	uint_t<IndexSize>                                 segment_start_pos = 0,
 	typename ReductionOp::result_type                 preceding_segments_reduction
 		= ReductionOp().neutral_value())
@@ -300,26 +303,28 @@ __device__ typename ReductionOp::result_type scan_segment(
 		"Only supporting power-of-two block lengths here, for now");
 	using namespace grid_info::linear;
 	using index_type = uint_t<IndexSize>;
+	using size_type = size_type_by_index_size<IndexSize>;
 	using result_type = typename ReductionOp::result_type;
 
 	auto reduction_upto_preceding_chunk = preceding_segments_reduction;
 
-	uint_t<IndexSize> segment_end_pos = segment_start_pos + segment_length;
+	auto segment_end_pos = segment_start_pos + segment_length;
+
 	// A "chunk" in this kernel is a sequence of data elements of length
 	// block::length(), which we process together in each iteration of the loop
 	// Actually, only the last block should have non-full chunks
 
 	if (!InitialChunkIsBlockAligned) {
-		uint_t<IndexSize> full_chunks_start = round_up_to_multiple_of_power_of_2(segment_start_pos, block::length());
+		auto full_chunks_start = round_up_to_multiple_of_power_of_2(segment_start_pos, block::length());
 		if (full_chunks_start > segment_start_pos) {
 			// TODO: If there's only one warp's worth to work on before the full chunks,
 			// don't use a block-primitive; or adjust the block primitive to be able to
 			// work on just some of the warps rather than the whole block
-			uint_t<IndexSize> pos = segment_start_pos + thread::index();
+			auto pos = segment_start_pos + thread::index();
 			result_type chunk_scan_result;
 			result_type chunk_reduction_result;
 			auto pretransformed_datum = pos < full_chunks_start ?
-				reduction::detail::apply_unary_op<index_type, PretransformOp>(pos, data[pos]) :
+				reduction::detail::apply_unary_op<decltype(pos), PretransformOp>(pos, data[pos]) :
 				ReductionOp().neutral_value();
 
 			primitives::block::scan_and_reduce<ReductionOp, decltype(pretransformed_datum), Inclusivity>(
@@ -337,16 +342,17 @@ __device__ typename ReductionOp::result_type scan_segment(
 	// At this point we're guaranteed that the segment start position is a multiple of block::length();
 	// (well, assuming the block length is power of 2, at least). We are _not_ sure that it isn't 0 though.
 
-	index_type full_chunks_end = round_down_to_multiple_of_power_of_2(segment_end_pos, block::length());
+	auto full_chunks_end = round_down_to_multiple_of_power_of_2(segment_end_pos, block::length());
 
-	index_type pos = segment_start_pos + thread::index();
+	// TODO: Shouldn't the following become an at_block_stride? Hmm.
+	auto pos = segment_start_pos + thread::index();
 
 	for(; pos < full_chunks_end; pos += block::length())
 	{
 		result_type chunk_scan_result;
 		result_type chunk_reduction_result;
 		auto pretransformed_datum =
-			reduction::detail::apply_unary_op<index_type, PretransformOp>(pos, data[pos]);
+			reduction::detail::apply_unary_op<decltype(pos), PretransformOp>(pos, data[pos]);
 		primitives::block::scan_and_reduce<
 			ReductionOp, typename PretransformOp::result_type, Inclusivity>(
 			scratch_area, pretransformed_datum, chunk_scan_result, chunk_reduction_result);
@@ -361,7 +367,7 @@ __device__ typename ReductionOp::result_type scan_segment(
 		result_type chunk_scan_result;
 		result_type chunk_reduction_result;
 		auto pretransformed_datum = pos < segment_end_pos ?
-			reduction::detail::apply_unary_op<index_type, PretransformOp>(pos, data[pos]) :
+			reduction::detail::apply_unary_op<decltype(pos), PretransformOp>(pos, data[pos]) :
 			ReductionOp().neutral_value();
 
 		primitives::block::scan_and_reduce<ReductionOp, decltype(pretransformed_datum), Inclusivity>(
@@ -407,8 +413,8 @@ __global__ void scan_using_segment_reductions(
 	typename ReductionOp::result_type*         __restrict__  results,
 	const typename ReductionOp::result_type*   __restrict__  segment_reductions,
 	const InputDatum*                          __restrict__  data,
-	uint_t<IndexSize>                                  total_length,
-	uint_t<IndexSize>                                  segment_length)
+	size_type_by_index_size<IndexSize>                       total_length,
+	size_type_by_index_size<IndexSize>                       segment_length)
 {
 	using namespace grid_info::linear;
 	using result_type = typename ReductionOp::result_type;
@@ -519,7 +525,7 @@ template<
 __global__ void scan_single_segment(
 	typename ReductionOp::result_type*         __restrict__  result,
 	const InputDatum*                          __restrict__  data,
-	uint_t<IndexSize>                                  length)
+	size_type_by_index_size<IndexSize>                       length)
 {
 	using namespace grid_info::linear;
 	using result_type = typename ReductionOp::result_type;

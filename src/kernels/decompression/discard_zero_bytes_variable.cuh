@@ -13,7 +13,7 @@ namespace discard_zero_bytes {
 namespace variable_width {
 
 // This could also very well be a template parameter
-using element_size_t = unsigned;
+using element_size_t = native_word_t;
 
 
 using namespace grid_info::linear;
@@ -23,15 +23,17 @@ namespace detail {
 /**
  * DZB-V element sizes are stored as sequences of consecutive bits within
  * 'bit container' data - typically, say, 2-3 bit sequences within a
- * 32-bit or 64-bit unsigned. Also, what's stored is not the actual
+ * 32-bit or 64-bit value. Also, what's stored is not the actual
  * element size, but only the relative index of the size within the
- * range of represented size, i.e. the extra size beyond the minimum
+ * range of represented sizes, i.e. the extra size beyond the minimum
  * represented. Length bit sequences do not overflow from one container
- * to another, i.e. the last several bits may be slack (e.g. for 3-bit
- * lengths in a 32-bit container the last 2 bits are slack). This
- * function applies the above to extract the element size from the size
- * containers buffer, given the element's position (in the uncompressed
- * data) and other relevant parameters.
+ * to another, i.e. the last several bits of a lengths container may be
+ * unused slack; for example, if we encodes lengths using 3 bits each,
+ * in a 32-bit container, the last 2 bits are unused.
+ *
+ * This function applies the above scheme to extract the element size from
+ * the size containers buffer, given the element's position (in the
+ * uncompressed data) and other relevant parameters.
  *
  * @param element_size_containers
  * @param element_index
@@ -42,19 +44,16 @@ namespace detail {
 template <unsigned IndexSize, unsigned ElementSizesContainerSize>
 __forceinline__ __device__  unsigned get_element_size(
 	const uint_t<ElementSizesContainerSize>*  __restrict__  element_size_containers,
-	uint_t<IndexSize>              element_index,
-	unsigned                             element_sizes_per_container,
-	unsigned                             bits_per_element_size,
-	unsigned                             min_represented_element_size)
+	uint_t<IndexSize>                                       element_index,
+	element_size_t                                          element_sizes_per_container,
+	native_word_t                                           bits_per_element_size,
+	native_word_t                                           min_represented_element_size)
 {
 	auto sizes_container =  element_size_containers[element_index / element_sizes_per_container];
 	auto size_representation =
 		bit_subsequence(
 			sizes_container, element_index % element_sizes_per_container * bits_per_element_size,
 			bits_per_element_size);
-//	thread_printf("My sizes container is %X, getting %d bits starting at %d yields size representation is %X",
-//		(unsigned) sizes_container, (int) bits_per_element_size,
-//		(int) (element_index % element_sizes_per_container), (unsigned) size_representation);
 	return size_representation + min_represented_element_size;
 }
 
@@ -67,12 +66,14 @@ using util::endianness_t;
  */
 namespace impl {
 
+static_assert(sizeof(native_word_t) == 4, "This code assumes the native GPU word has 4 bytes");
+
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_1_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	*result = 0;
 	if (num_low_bytes > 0) { *result = *low_bytes; }
@@ -81,14 +82,14 @@ void pad_high_bytes_1_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_2_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	*result = 0;
 	switch(num_low_bytes) {
-	case 1: *reinterpret_cast<unsigned char*> (result) = *reinterpret_cast<const unsigned char*> (low_bytes); break;
-	case 2: *reinterpret_cast<unsigned short*>(result) = *reinterpret_cast<const unsigned short*>(low_bytes); break;
+	case 1: *reinterpret_cast<uint8_t*> (result) = *reinterpret_cast<const uint8_t*> (low_bytes); break;
+	case 2: *reinterpret_cast<uint16_t*>(result) = *reinterpret_cast<const uint16_t*>(low_bytes); break;
 	}
 }
 
@@ -96,28 +97,28 @@ void pad_high_bytes_2_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_4_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	*result = 0;
 	switch(num_low_bytes) {
-	case 1: *reinterpret_cast<unsigned char*> (result) = *reinterpret_cast<const unsigned char*> (low_bytes); break;
-	case 2: *reinterpret_cast<unsigned short*>(result) = *reinterpret_cast<const unsigned short*>(low_bytes); break;
-	case 3: *reinterpret_cast<uchar3*>        (result) = *reinterpret_cast<const uchar3*>        (low_bytes); break;
-	case 4: *reinterpret_cast<unsigned int*>  (result) = *reinterpret_cast<const unsigned int*>  (low_bytes); break;
+	case 1: *reinterpret_cast<uint8_t* >(result) = *reinterpret_cast<const uint8_t* >(low_bytes); break;
+	case 2: *reinterpret_cast<uint16_t*>(result) = *reinterpret_cast<const uint16_t*>(low_bytes); break;
+	case 3: *reinterpret_cast<uchar3*  >(result) = *reinterpret_cast<const uchar3*  >(low_bytes); break;
+	case 4: *reinterpret_cast<uint32_t*>(result) = *reinterpret_cast<const uint32_t*>(low_bytes); break;
 	}
 }
 
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_3_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	native_word_t num_low_bytes)
 {
-	unsigned staging;
-	pad_high_bytes_4_byte(reinterpret_cast<unsigned char*>(&staging), low_bytes, num_low_bytes);
+	uint32_t staging;
+	pad_high_bytes_4_byte(reinterpret_cast<uint8_t*>(&staging), low_bytes, num_low_bytes);
 	*reinterpret_cast<uchar3*>(result) = reinterpret_cast<uchar3&>(staging);
 }
 
@@ -125,12 +126,12 @@ void pad_high_bytes_3_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_5_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	if (num_low_bytes > 4) {
-		*reinterpret_cast<unsigned int*>(result) = *reinterpret_cast<const unsigned int*>(low_bytes);
+		*reinterpret_cast<uint32_t*>(result) = *reinterpret_cast<const uint32_t*>(low_bytes);
 		pad_high_bytes_1_byte(result + 4, low_bytes + 4, num_low_bytes - 4);
 		return;
 	}
@@ -140,12 +141,12 @@ void pad_high_bytes_5_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_6_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	if (num_low_bytes > 4) {
-		*reinterpret_cast<unsigned int*>  (result) = *reinterpret_cast<const unsigned int*>(low_bytes);
+		*reinterpret_cast<uint32_t*>  (result) = *reinterpret_cast<const uint32_t*>(low_bytes);
 		pad_high_bytes_2_byte(result + 4, low_bytes + 4, num_low_bytes - 4);
 		return;
 	}
@@ -155,12 +156,12 @@ void pad_high_bytes_6_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_7_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	if (num_low_bytes > 4) {
-		*reinterpret_cast<unsigned int*>  (result) = *reinterpret_cast<const unsigned int*>(low_bytes);
+		*reinterpret_cast<uint32_t*>  (result) = *reinterpret_cast<const uint32_t*>(low_bytes);
 		pad_high_bytes_3_byte(result + 4, low_bytes + 4, num_low_bytes - 4);
 		return;
 	}
@@ -170,12 +171,12 @@ void pad_high_bytes_7_byte(
 //template <endianness_t OutputEndianness>
 __device__ __forceinline__
 void pad_high_bytes_8_byte(
-	unsigned char*       __restrict__  result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	uint8_t*       __restrict__  result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	if (num_low_bytes > 4) {
-		*reinterpret_cast<unsigned int*>  (result) = *reinterpret_cast<const unsigned int*>(low_bytes);
+		*reinterpret_cast<unsigned int*>  (result) = *reinterpret_cast<const uint32_t*>(low_bytes);
 		pad_high_bytes_4_byte(result + 4, low_bytes + 4, num_low_bytes - 4);
 		return;
 	}
@@ -195,14 +196,14 @@ void assign_zero_if_possible(typename std::enable_if<!std::is_arithmetic<T>::val
 template <typename T/*, endianness_t OutputEndianness*/>
 __device__ __forceinline__
 void pad_high_bytes(
-	T&                                 result,
-	const unsigned char* __restrict__  low_bytes,
-	unsigned                           num_low_bytes)
+	T&                           result,
+	const uint8_t* __restrict__  low_bytes,
+	element_size_t               num_low_bytes)
 {
 	if (std::is_arithmetic<T>::value) {
 		impl::assign_zero_if_possible<T>(result);
 	}
-	auto result_bytes = reinterpret_cast<unsigned char*>(&result);
+	auto result_bytes = reinterpret_cast<uint8_t*>(&result);
 	if (num_low_bytes > 0) {
 		memcpy(result_bytes, low_bytes, num_low_bytes);
 	}
@@ -235,24 +236,25 @@ namespace warp {
  * @param compressed_input
  * @param uncompressed_element_sizes
  * @param position_anchors
- * @param num_elements
+ * @param length
  */
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
 __device__ void decompress(
 	uint_t<UncompressedSize>*  __restrict__  decompressed,
-	const unsigned char*             __restrict__  compressed_data,
+	const uint8_t*             __restrict__  compressed_data,
 	const uint_t<ElementSizesContainerSize>*
-	                                 __restrict__  packed_element_sizes,
-	unsigned                                       offset_into_first_element_sizes_container,
-	uint_t<IndexSize>                        num_compressed_elements,
-	element_size_t                                 min_represented_element_size,
-	unsigned                                       bits_per_element_size,
-	unsigned                                       element_sizes_per_container,
-	unsigned                                       element_sizes_offset)
+	                           __restrict__  packed_element_sizes,
+	native_word_t                            offset_into_first_element_sizes_container,
+	size_type_by_index_size<IndexSize>       num_compressed_elements,
+	element_size_t                           min_represented_element_size,
+	native_word_t                            bits_per_element_size,
+	native_word_t                            element_sizes_per_container,
+	native_word_t                            element_sizes_offset)
 {
 	using uncompressed_type = uint_t<UncompressedSize>;
+	using size_type = size_type_by_index_size<IndexSize>;
 
-	uint_t<IndexSize> output_pos_past_warp = warp_size;
+	size_type output_pos_past_warp = warp_size;
 
 	// The number of elements in uncompressed_elements_sizes which we will be
 	// reading data from (which, effectively, is its length as far as this
@@ -271,8 +273,8 @@ __device__ void decompress(
 //		(int) element_sizes_per_container, (int) bits_per_element_size, (int) element_sizes_offset
 //	);
 
-	uint_t<IndexSize> output_pos = lane::index();
-	uint_t<IndexSize> warp_input_pos = 0;
+	size_type output_pos = lane::index();
+	size_type warp_input_pos = 0;
 	for(; output_pos_past_warp <= num_compressed_elements;
 		output_pos += warp_size, output_pos_past_warp += warp_size) {
 		// In this case, all warp lanes can write an element to the output
@@ -295,7 +297,7 @@ __device__ void decompress(
 			min_represented_element_size);
 
 		auto compressed_element_pos_in_input = warp_input_pos +
-			primitives::warp::exclusive_prefix_sum<unsigned>(element_size);
+			primitives::warp::exclusive_prefix_sum(element_size);
 
 		pad_high_bytes(decompressed_element, compressed_data + compressed_element_pos_in_input, element_size);
 		decompressed[output_pos] = decompressed_element;
@@ -319,7 +321,7 @@ __device__ void decompress(
 		0;
 
 	auto compressed_element_pos_in_input = warp_input_pos +
-		primitives::warp::exclusive_prefix_sum<unsigned>(element_size);
+		primitives::warp::exclusive_prefix_sum(element_size);
 
 	if (output_pos >= num_compressed_elements) { return; }
 
@@ -331,45 +333,76 @@ __device__ void decompress(
 } // namespace detail
 
 /**
- * Decompress data compressed with the DZB-V/NSV compression sceheme
+ * @brief Decompresses data compressed with the DZB-V/NSV compression scheme
  * (drop zero bytes - variable, a.k.a. null suppression - variable),
- * when position anchors are available.
+ * in anchored segments.
+ *
+ * In this scheme, each element of the uncompressed data is represented
+ * using a variable number of bytes within @p compressed_data : When
+ * some of its prefix bytes are 0, we skip their representation. It
+ * is assumed all elements have a number of non-zero bytes (their
+ * "element size") equal to @p min_represented_element_size + a number
+ * in the range [ 0 .. 1 << bits_per_element_size - 1). Thus,
+ * typically, we might represent elements of sizes 1, 2, 3, 4 with
+ * a minimum length of 1 and 2 bits of size information.
+ *
+ * The element sizes are themselves stored in _fixed-width_ form,
+ * so we can easily tell where they're located without having to sum
+ * anything up. They're bunched up within element-size containers,
+ * which form the @p uncompressed_element_sizes array
+ * (see @ref get_element_size for more details).
+ *
+ * Now, just from an element's size you can't tell where exactly
+ * its actual data is located - since data is variable-size. To do
+ * so we have to sum up consecutive element lengths from some
+ * starting point up until our element of interest. Since we
+ * do not wish to always sum up from the beginning of the entire column,
+ * we decompress in <i>anchored segments</i>, i.e. for every certain
+ * number of elements (the @p segment_length) we have a <i>position
+ * anchor</i> which indicates where the data for the first of these
+ * elements starts with the @p compressed data array. In a sense, this
+ * is like a pre-computed first phase of a "prefix sum" over the element
+ * sizes.
+ *
+ * @note The data is not <i>actually</i> broken up into segments. One
+ * can decompress it without using the anchors at all, with no change
+ * of semantics for the @compressed_input and @uncompressed_element_sizes
+ * arrays.
  *
  * @param decompressed
- * @param compressed_input
- * @param uncompressed_element_sizes
+ * @param compressed_data
+ * @param packed_element_sizes
  * @param position_anchors
- * @param position_anchoring_period
- * @param num_elements
+ * @param segment_length
+ * @param length overall
  * @param min_represented_element_size
- * @param bits_per_element_size Number of bits used to represented the
- * size of an uncompressed elements.
+ * @param bits_per_element_size
  */
 template<unsigned IndexSize, /* util::terminal_t EndToPad, */unsigned UncompressedSize, unsigned ElementSizesContainerSize>
 __global__ void decompress(
 	uint_t<UncompressedSize>*  __restrict__  decompressed,
-	const unsigned char*             __restrict__  compressed_data,
+	const uint8_t*             __restrict__  compressed_data,
 	const uint_t<ElementSizesContainerSize>*
-	                                 __restrict__  packed_element_sizes,
-	const uint_t<IndexSize>*                      __restrict__  position_anchors,
-	uint_t<IndexSize>                        position_anchoring_period,
-	uint_t<IndexSize>                        num_elements,
-	element_size_t                                 min_represented_element_size,
-	unsigned                                       bits_per_element_size)
+	                           __restrict__  packed_element_sizes,
+	const uint_t<IndexSize>*   __restrict__  position_anchors,
+	size_type_by_index_size<IndexSize>       segment_length,
+	size_type_by_index_size<IndexSize>       length,
+	element_size_t                           min_represented_element_size,
+	native_word_t                            bits_per_element_size)
 {
 	using element_sizes_container_type = uint_t<ElementSizesContainerSize>;
 	static_assert(ElementSizesContainerSize == 4 or ElementSizesContainerSize == 8,
 		"Only container types with 32 or 64 bits are currently supported");
 
-	auto warp_start_output_pos = position_anchoring_period * warp::global_index();
+	auto warp_start_output_pos = segment_length * warp::global_index();
 
-	if (warp_start_output_pos >= num_elements) { return; }
+	if (warp_start_output_pos >= length) { return; }
 
 	auto element_sizes_per_size_container = size_in_bits<element_sizes_container_type>::value / bits_per_element_size;
 
 	// TODO: If anchors are very close for some reason (and remember, this kernel itself
-	// does  not control the anchoring period) - we might want to consider having a single
-	// anchor process more than a single period. For now that doesn't happen
+	// does  not control the segment length) - we might want to consider having a single
+	// anchor process more than a single segment. For now that doesn't happen
 	//
 	// Each warp will decompress the elements between consecutive anchor positions (or
 	// all elements starting at the last anchor, if it's the last warp in the grid).
@@ -377,17 +410,17 @@ __global__ void decompress(
 	// the lengths so as to allow latter warps to know where to start.
 
 
-	auto is_last_active_warp_in_grid = (warp_start_output_pos + warp_size >= num_elements);
+	auto is_last_active_warp_in_grid = (warp_start_output_pos + warp_size >= length);
 
 	auto warp_start_pos_in_element_sizes         = warp_start_output_pos / element_sizes_per_size_container;
 	auto offset_in_first_element_sizes_container = warp_start_output_pos % element_sizes_per_size_container;
 	auto num_elements_for_warp_decompression     = is_last_active_warp_in_grid ?
-		(num_elements - warp_start_output_pos) : position_anchoring_period;
+		(length - warp_start_output_pos) : segment_length;
 
 //	grid_printf(
 //		"This grid will decompress %llu elements, represented sizes %d..%d, sizes "
 //		"per container %d, bits per element size %d",
-//		(size_t) num_elements,
+//		(size_t) length,
 //		(int) min_represented_element_size, (int) min_represented_element_size + (1 << bits_per_element_size) - 1,
 //		(int) element_sizes_per_size_container, (int) bits_per_element_size
 //	);
@@ -413,14 +446,14 @@ public:
 	launch_config_resolution_params_t(
 		device::properties_t            device_properties_,
 		size_t                          length_in_elements,
-		size_t                          position_anchoring_period) :
+		size_t                          segment_length) :
 		parent(
 			device_properties_,
 			device_function_t(decompress<IndexSize, UncompressedSize, ElementSizesContainerSize>)
 		)
 	{
 		grid_construction_resolution            = warp;
-		length                                  = util::div_rounding_up(length_in_elements, position_anchoring_period);
+		length                                  = util::div_rounding_up(length_in_elements, segment_length);
 		serialization_option                    = none;
 	};
 };

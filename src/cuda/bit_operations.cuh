@@ -2,7 +2,7 @@
 #ifndef CUDA_BIT_OPERATIONS_CUH_
 #define CUDA_BIT_OPERATIONS_CUH_
 
-#include <type_traits>
+#include "cuda/api/types.h"
 
 #ifdef __CUDA_ARCH__
 #include "cuda/on_device/builtins.cuh"
@@ -10,16 +10,18 @@
 #include "cuda/faux_builtins.hpp"
 #endif
 
-#ifndef CHAR_BIT
-#define CHAR_BIT 8
-#endif
+#include <type_traits>
 
 // TODO: Address potential redundancies between code here and host code
 
 namespace cuda {
 
+using standard_bit_container_t = native_word_t;
+
+namespace { enum { bits_per_byte = 8 }; }
+
 template <typename T>
-struct size_in_bits { enum { value = sizeof(T) * CHAR_BIT }; };
+struct size_in_bits { enum : size_t { value = sizeof(T) * bits_per_byte }; };
 
 #ifdef __CUDACC__
 #define __fhd__  __forceinline__ __host__ __device__
@@ -58,13 +60,36 @@ template <typename T> constexpr __fhd__ T rotate_right(T x, unsigned num_positio
 	return x >> num_positions | x << (size_in_bits<T>::value - num_positions);
 }
 
+#ifdef __CUDA_ARCH__
+// Note: this is a faux primitive, need to remove it!
+// 1-based; returns 0 if no bits are set
+template <typename T> __fd__ int find_first_set(T x);
+template <> __fd__ int find_first_set<int               >(int x)                { return __ffs(x);   }
+template <> __fd__ int find_first_set<unsigned int      >(unsigned int x)       { return __ffs(x);   }
+template <> __df__ int find_first_set<long long         >(long long x)          { return __ffsll(x); }
+template <> __df__ int find_first_set<unsigned long long>(unsigned long long x) { return __ffsll(x); }
+
+#else
+template <typename T> inline int find_first_set(T x)
+{
+	// Unlike GPUs , CPUs _do_ have a ffs builtin
+	return builtins::find_first_set(x);
+}
+#endif
+
 /**
  * @brief counts the number initial zeros when considering the binary representation
  * of a number from least to most significant digit
  * @param x the number whose representation is to be counted
  * @return the number of initial zero bits before the first 1; if x is 0, -1 is returned
  */
-template <typename T> __fhd__ int count_trailing_zeros(T x) { return builtins::find_first_set(x) - 1; }
+template <typename T> __fhd__ int count_trailing_zeros(T x) {
+#ifdef __CUDA_ARCH__
+	return find_first_set(x) - 1;
+#else
+	return builtins::find_first_set(x) - 1;
+#endif
+}
 
 /**
  * Get the 1-based bit index of the last bit in a number which is set (to 1)
@@ -82,10 +107,10 @@ template <typename T, bool StrictSemantics = true> __fhd__ int find_last_set(T x
 {
 	if (StrictSemantics) {
 		auto reverse_ffs = find_first_set(reverse_bits(x));
-		return (!!reverse_ffs) * (sizeof(T) * CHAR_BIT + 1 - reverse_ffs) ;
+		return (!!reverse_ffs) * (size_in_bits<T>::value + 1 - reverse_ffs) ;
 	}
 	else {
-		return (sizeof(T) * CHAR_BIT + 1) - find_first_set(reverse_bits(x)) ;
+		return (size_in_bits<T>::value + 1) - find_first_set(reverse_bits(x)) ;
 
 	}
 }
@@ -141,7 +166,7 @@ __fhd__ T keep_only_highest_set_bit(T x)
  * @return The bits of x of indices 0...bit_index-1 (0-based)
  */
 template <typename T>
-constexpr __fhd__ unsigned int keep_bits_before(T x, unsigned bit_index)
+constexpr __fhd__ T keep_bits_before(T x, unsigned bit_index)
 {
 	return x & ((1 << bit_index) - 1);
 }
@@ -156,7 +181,7 @@ constexpr __fhd__ unsigned int keep_bits_before(T x, unsigned bit_index)
  * @return The bits of x of indices 0...bit_index (0-based)
  */
 template <typename T>constexpr
-__fhd__ unsigned int keep_bits_up_to(T x, unsigned bit_index)
+__fhd__ T keep_bits_up_to(T x, unsigned bit_index)
 {
 	return keep_bits_before(x, bit_index + 1);
 }
@@ -172,7 +197,7 @@ __fhd__ unsigned int keep_bits_up_to(T x, unsigned bit_index)
  * in their original positions, i.e. not shifted
  */
 template <typename T> constexpr
-__fhd__ unsigned int keep_bits_starting_from(T x, unsigned bit_index)
+__fhd__ T keep_bits_starting_from(T x, unsigned bit_index)
 {
 	return x & ~((1 << bit_index) - 1);
 }
@@ -188,7 +213,7 @@ __fhd__ unsigned int keep_bits_starting_from(T x, unsigned bit_index)
  * in their original positions, i.e. not shifted
  */
 template <typename T> constexpr
-__fhd__ unsigned int keep_bits_after(T x, unsigned bit_index)
+__fhd__ T keep_bits_after(T x, unsigned bit_index)
 {
 	return keep_bits_starting_from(x, bit_index + 1);
 }

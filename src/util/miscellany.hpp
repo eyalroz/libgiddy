@@ -8,6 +8,7 @@
 #define BOOST_SYSTEM_NO_DEPRECATED 1
 #endif
 
+#include "util/bits.hpp"
 #include "util/math.hpp" // for kinda_equal and ilog2
 #include "util/index_sequence.hpp"
 
@@ -42,8 +43,6 @@
 namespace util {
 
 using std::size_t;
-
-enum { bits_per_byte = CHAR_BIT, bits_per_char = CHAR_BIT, log_bits_per_char = 3 };
 
 /**
  * Call the same function (without possibility of different instantiation)
@@ -196,73 +195,6 @@ static bool kinda_equal(
 }
 
 template <typename T>
-constexpr inline T num_bits_to_num_bytes(T n_bits) {
-	return (n_bits  + bits_per_char - 1) >> log_bits_per_char;
-}
-
-/**
- * The number bits in the representation of a value of type T
- */
-template <typename T>
-struct size_in_bits { enum : size_t { value = sizeof(T) << log_bits_per_char }; };
-
-/**
- * The number of distinct values of type T
- */
-template <typename T>
-struct domain_size {
-	enum : size_t { value = ((size_t)1) << (
-		sizeof(typename std::enable_if<
-			sizeof(T) < sizeof(size_t) and std::is_integral<T>::value, T
-		>::type) * bits_per_char) };
-};
-
-/**
- * The number of distinct values of type T
- */
-template <typename T>
-struct capped_domain_size {
-	enum : size_t { value = ((size_t)1) << (
-		sizeof(typename std::enable_if<
-			sizeof(T) < sizeof(size_t) and std::is_integral<T>::value, T
-		>::type) * bits_per_char) };
-};
-
-/**
- * Same as @ref domain_length<T> but allowing for a supposedly
- * lower-by-1 domain size for size_t-sized types, which cannot hold
- * the actual value.
- */
-template<>
-struct capped_domain_size<long> {
-	enum : size_t { value = std::numeric_limits<
-		typename std::enable_if<
-			sizeof(long) == sizeof(size_t), long
-		>::type>::max() };
-};
-template<>
-struct capped_domain_size<unsigned long> {
-	enum : size_t { value = std::numeric_limits<
-		typename std::enable_if<
-			sizeof(unsigned long) == sizeof(size_t), unsigned long
-		>::type>::max() };
-};
-template<>
-struct capped_domain_size<long long> {
-	enum : size_t { value = std::numeric_limits<
-		typename std::enable_if<
-			sizeof(long long) == sizeof(size_t), long long
-		>::type>::max() };
-};
-template<>
-struct capped_domain_size<unsigned long long> {
-	enum : size_t { value = std::numeric_limits<
-		typename std::enable_if<
-			sizeof(unsigned long long) == sizeof(size_t), unsigned long long
-		>::type>::max() };
-};
-
-template <typename T>
 unsigned char type_size_to_fit(typename std::enable_if<std::is_unsigned<T>::value, T>::type x)
 {
 //	return util::round_down_to_power_of_2(util::ceil_log2(x) / CHAR_BIT);
@@ -290,55 +222,6 @@ template <typename T>
 unsigned char num_bytes_to_fit(typename std::enable_if<std::is_unsigned<T>::value, const T>::type x) {
 	auto highest_bit_index = util::floor_log2(x);
 	return num_bits_to_num_bytes(highest_bit_index + 1);
-}
-
-// TODO: Perhaps a version of type_size_to_fit ?
-
-template <typename T> inline T constexpr lowest_k_bits(T x, unsigned k)
-{
-	return x & ((1 << k) - 1);
-}
-
-template <typename T> inline T constexpr highest_k_bits(T x, unsigned k)
-{
-	return x >> (size_in_bits<T>::value - k);
-}
-
-template <typename T> inline T constexpr bit_subsequence(T x, unsigned starting_bit, unsigned num_bits)
-{
-	return lowest_k_bits(x >> starting_bit, num_bits);
-}
-
-
-template <typename T> inline T constexpr clear_lower_k_bits(T x, unsigned k)
-{
-	return x & ~((1 << k) - 1);
-}
-
-template <typename T> inline T constexpr clear_higher_k_bits(T x, unsigned k)
-{
-	return lowest_k_bits(size_in_bits<T>::value - k);
-}
-
-template <typename T> inline bool constexpr has_bit_set(const T& x, unsigned bit_index)
-{
-		    return x & (1 << bit_index);
-}
-
-template <typename T> inline T constexpr set_bit(const T& x, unsigned bit_index)
-{
-		    return x | (1 << bit_index);
-}
-
-template <typename T> inline T constexpr clear_bit(T x, unsigned bit_index)
-{
-		    return x & ~(1 << bit_index);
-}
-
-template <typename T>
-constexpr inline typename std::enable_if<std::is_integral<T>::value, T>::type all_one_bits()
-{
-	return ~((T)0);
 }
 
 template<typename InputIterator, typename Separator>

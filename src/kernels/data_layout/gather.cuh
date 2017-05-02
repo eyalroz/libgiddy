@@ -18,8 +18,8 @@ __forceinline__ __device__ void gather(
 	uint_t<ElementSize>*           __restrict__  reordered_data,
 	const uint_t<ElementSize>*     __restrict__  data,
 	const uint_t<InputIndexSize>*  __restrict__  indices,
-	size_t                                       data_length,
-	const uint_t<OutputIndexSize>                num_indices,
+	size_type_by_index_size<InputIndexSize>      data_length,
+	size_type_by_index_size<OutputIndexSize>     num_indices,
 	bool                                         cache_data_in_shared_memory,
 	serialization_factor_t                       serialization_factor) // TODO: It looks like we're not using this right now
 {
@@ -153,8 +153,8 @@ __global__ void gather(
 	uint_t<ElementSize>*           __restrict__  reordered_data,
 	const uint_t<ElementSize>*     __restrict__  data,
 	const uint_t<InputIndexSize>*  __restrict__  indices,
-	size_t                                       data_length,
-	const uint_t<OutputIndexSize>                num_indices,
+	size_type_by_index_size<InputIndexSize>      data_length,
+	size_type_by_index_size<OutputIndexSize>     num_indices,
 	bool                                         cache_data_in_shared_memory,
 	serialization_factor_t                       serialization_factor)
 {
@@ -185,11 +185,11 @@ protected:
 
 public:
 	launch_config_resolution_params_t(
-		device::properties_t            device_properties_,
-		size_t                          input_data_length,
-		size_t                          num_indices,
-		optional<bool>                  cache_input_data_in_shared_memory_override = nullopt,
-		optional<shared_memory_size_t>  dynamic_shared_mem_limit = nullopt) :
+		device::properties_t                      device_properties_,
+		size_t                                    input_data_length,
+		size_t                                    num_indices,
+		optional<bool>                            cache_input_data_in_shared_memory_override = nullopt,
+		optional<shared_memory_size_t>            dynamic_shared_mem_limit = nullopt) :
 		parent(
 			device_properties_,
 			device_function_t(gather<OutputIndexSize, ElementSize, InputIndexSize>),
@@ -212,10 +212,10 @@ public:
 	};
 
 	launch_config_resolution_params_t(
-		device::properties_t            device_properties_,
-		size_t                          input_data_length,
-		size_t                          num_indices,
-		optional<shared_memory_size_t>  dynamic_shared_mem_limit) :
+		device::properties_t                      device_properties_,
+		size_t                                    input_data_length,
+		size_t                                    num_indices,
+		optional<shared_memory_size_t>            dynamic_shared_mem_limit) :
 		launch_config_resolution_params_t(
 			device_properties_, input_data_length,
 			num_indices, nullopt, dynamic_shared_mem_limit) { };

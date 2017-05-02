@@ -1,11 +1,14 @@
 #ifndef UTIL_INTEGER_H_
 #define UTIL_INTEGER_H_
 
+#include "util/bits.hpp"
+
 // TODO: Consider dropping all of the boost stuff
 #include <boost/integer.hpp>
 #include <ostream>
 #include <istream>
 #include <cstring> // for memcpy and memset
+#include <type_traits>
 
 namespace util {
 
@@ -205,6 +208,70 @@ template<> struct int_t<1, detail::is_unsigned > { using type = uint8_t;  };
 template<> struct int_t<2, detail::is_unsigned > { using type = uint16_t; };
 template<> struct int_t<4, detail::is_unsigned > { using type = uint32_t; };
 template<> struct int_t<8, detail::is_unsigned > { using type = uint64_t; };
+
+namespace detail {
+namespace {
+	template <typename T>
+	constexpr int log2_constexpr(T val) { return val ? 1 + log2_constexpr(val >> 1) : -1; }
+
+	template <typename T>
+	constexpr int ceil_log2_constexpr(T val) { return val ? 1 + log2_constexpr<T>(val - 1) : -1; }
+
+	template <typename T>
+	constexpr inline T round_up_to_power_of_2_constexpr(const T& x_greater_than_one)
+	{
+		return ((T)1) << ceil_log2_constexpr(x_greater_than_one);
+	}
+
+} // namespace (anonymous)
+} // namespace detail
+
+/**
+ * @brief A type trait for working with sizes of subsets of a type
+ *
+ * Consider some type, say an unsigned type, T. Its domain of possible
+ * values is 0...sizeof(T)*CHAR_BIT - 1 . Now, if we take a subset of
+ * this domain, what can its size be? 0...sizeof(T)*CHAR_BIT ; problem
+ * is, this larger domain can't be represented by T! That's what this
+ * type trait is about; it provides a type for representing this
+ * slightly-larger domain, as well as its size.
+ *
+ * The trait is only defined when there exists a "natural" unsigned
+ * integral type which can represent the larger domain, e.g. it
+ * isn't defined for integer types of size 8 and higher; for those,
+ * see @ref capped_domain_size instead.
+ *
+ */
+template <typename T>
+struct domain_size {
+	using type = typename std::enable_if<
+		sizeof(T) < 8,
+		uint_t<detail::round_up_to_power_of_2_constexpr(sizeof(T) + 1)>
+	>::type;
+
+	enum : size_t { value = ((size_t)1) << (
+		sizeof(typename std::enable_if<
+			(sizeof(T) < sizeof(size_t)) and std::is_integral<T>::value, T
+		>::type) * bits_per_char) };
+};
+
+/**
+ * Same as @ref domain_size<T> but pretending the domain size
+ * of 8-byte-sized types fits inside a {@code uint64_t} (otherwise a bunch
+ * of code won't compile)
+ */
+template <typename T>
+struct capped_domain_size {
+	static_assert(std::is_integral<T>::value, "Not supported for non-integral types");
+	using type = uint_t<sizeof(T) >= 8 ? 8 :
+		detail::round_up_to_power_of_2_constexpr(sizeof(T) + 1)>;
+	enum : bool { cap_reached = (sizeof(T) == 8) };
+	enum : size_t { value =
+		sizeof(T) < sizeof(size_t) ?
+			( ((size_t) 1) << sizeof(T) * bits_per_byte) - 1 :
+			std::numeric_limits<size_t>::max()
+	};
+};
 
 } // namespace util
 

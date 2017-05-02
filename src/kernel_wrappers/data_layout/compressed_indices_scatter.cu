@@ -14,10 +14,12 @@ class kernel_t : public cuda::registered::kernel_t {
 public:
 	REGISTERED_KERNEL_WRAPPER_BOILERPLATE_DEFINITIONS(kernel_t);
 
-	using element_type      = util::uint_t<ElementSize>;
-	using input_index_type  = util::uint_t<InputIndexSize>;
-	using output_index_type = util::uint_t<OutputIndexSize>;
-	using run_length_type   = util::uint_t<RunLengthSize>;
+	using element_type      = uint_t<ElementSize>;
+	using input_index_type  = uint_t<InputIndexSize>;
+	using input_size_type   = size_type_by_index_size<InputIndexSize>;
+	using output_index_type = uint_t<OutputIndexSize>;
+	using output_size_type  = size_type_by_index_size<OutputIndexSize>;
+	using run_length_type   = uint_t<RunLengthSize>;
 
 	launch_configuration_t resolve_launch_configuration(
 		device::properties_t           device_properties,
@@ -79,9 +81,11 @@ void kernel_t<OutputIndexSize, ElementSize, InputIndexSize, RunLengthSize>::enqu
 	auto scatter_position_run_offsets_start_pos       = any_cast<const input_index_type*  >(arguments.at("scatter_position_run_offsets_start_pos"      ));
 	auto scatter_position_offset_bytes                = any_cast<const unsigned char*     >(arguments.at("scatter_position_offset_bytes"               ));
 	auto scatter_position_anchors                     = any_cast<const input_index_type*  >(arguments.at("scatter_position_anchors"                    ));
+	// Note: The typing of the next two parameters makes the (trivial)
+	// assumption the anchoring period is not the maximum possible length of the input
 	auto anchoring_period                             = any_cast<input_index_type         >(arguments.at("anchoring_period"                            ));
 	auto num_scatter_position_runs                    = any_cast<input_index_type         >(arguments.at("num_scatter_position_runs"                   ));
-	auto input_data_length                            = any_cast<size_t                   >(arguments.at("input_data_length"                           ));
+	auto input_data_length                            = any_cast<input_size_type          >(arguments.at("input_data_length"                           ));
 
 	cuda::kernel::enqueue_launch(
 		*this, stream, launch_config,
@@ -110,7 +114,7 @@ const cuda::device_function_t kernel_t<OutputIndexSize, ElementSize, InputIndexS
 
 
 static_block {
-	//      OutputIndexSize  ElementSize  InputIndexSize
+	//        OutputIndexSize  ElementSize  InputIndexSize
 	//-----------------------------------------------------------------------
 	kernel_t< 4,               1,           1 >::registerInSubclassFactory();
 	kernel_t< 4,               1,           2 >::registerInSubclassFactory();
