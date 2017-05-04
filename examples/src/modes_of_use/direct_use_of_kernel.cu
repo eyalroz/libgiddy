@@ -9,8 +9,8 @@ void decompress_on_device(
 	uncompressed_type*              __restrict__  decompressed,
 	const compressed_type*          __restrict__  compressed,
 	const model_coefficients_type*  __restrict__  segment_model_coefficients,
-	index_type                                    length,
-	index_type                                    segment_length)
+	size_type                                     length,
+	size_type                                     segment_length)
 {
 	namespace kernel_ns = cuda::kernels::decompression::frame_of_reference;
 

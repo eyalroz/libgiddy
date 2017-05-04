@@ -13,6 +13,7 @@ constexpr inline T div_rounding_up(const T& dividend, const T& divisor) {
 }
 
 using index_type        = uint32_t;
+using size_type         = uint32_t; // assuming less than 2^32 elements
 using uncompressed_type = int32_t;
 using compressed_type   = int16_t;
 using model_type = cuda::functors::unary::parametric_model::constant<sizeof(index_type), uncompressed_type>;
@@ -22,8 +23,8 @@ void decompress_on_device(
 	uncompressed_type*              __restrict__  decompressed,
 	const compressed_type*          __restrict__  compressed,
 	const model_coefficients_type*  __restrict__  segment_model_coefficients,
-	index_type                                    length,
-	index_type                                    segment_length);
+	size_type                                     length,
+	size_type                                     segment_length);
 
 int main(void)
 {
