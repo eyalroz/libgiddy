@@ -75,7 +75,7 @@ Suppose we're presented with compressed data with the following characteristics,
 in other words, we want to implement the following function:
 
 ```
-using index_type        = uint32_t;
+using size_type         = uint32_t; // assuming less than 2^32 elements
 using uncompressed_type = int32_t;
 using compressed_type   = int16_t;
 
@@ -83,8 +83,8 @@ void decompress_on_device(
 	uncompressed_type*              __restrict__  decompressed,
 	const compressed_type*          __restrict__  compressed,
 	const model_coefficients_type*  __restrict__  segment_model_coefficients,
-	index_type                                    length,
-	index_type                                    segment_length);
+	size_type                                    length,
+	size_type                                    segment_length);
 ```
 
 We can do this with Giddy in one of three ways.
