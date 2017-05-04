@@ -38,18 +38,18 @@ If this sounds a bit confusing, scroll down to the [examples](#examples) section
 
 The following compression schemes are currently included:
 
-* Delta
-* Dictionary
-* Null Suppression (Discard Zero-Bytes):
-   * Fixed width
-   * Variable width
-* (Generalized) Frame of Reference
-* Incidence Bitmaps
-* Model
-* Run Length Encoding
-* Run Position Encoding
+* [Delta](https://github.com/eyalroz/libgiddy/wiki/Delta)
+* [Dictionary](https://github.com/eyalroz/libgiddy/wiki/Dictionary)
+* Discard Zero-Bytes (Null Suppression):
+   * [Fixed width](https://github.com/eyalroz/libgiddy/wiki/Discard-Zero-Bytes)
+   * [Variable width](https://github.com/eyalroz/libgiddy/wiki/Discard-Zero-Bytes-Variable)
+* [(Generalized) Frame of Reference](https://github.com/eyalroz/libgiddy/wiki/Frame-of-Reference)
+* [Incidence Bitmaps](https://github.com/eyalroz/libgiddy/wiki/Incidence-Bitmaps)
+* [Model](https://github.com/eyalroz/libgiddy/wiki/Model)
+* [Run Length Encoding](https://github.com/eyalroz/libgiddy/wiki/Run-Length-Encoding)
+* [Run Position Encoding](https://github.com/eyalroz/libgiddy/wiki/Run-Position-Encoding)
 
-*(A specification of each of these, its semantics and exact parameters is forthcoming; for now, please consult the sources themselves.)*
+*(Note the Wiki pages for each of the schemes are just now being written.)*
 
 Additionally, two patching schemes are supported: 
 
